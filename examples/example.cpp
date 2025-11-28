@@ -2,10 +2,11 @@
 // Distributed under the MIT software license
 // See LICENCE file or https://opensource.org/licenses/MIT
 
+module;
 #include <iostream>
 #include <fstream>
-#include "cryptic/sha1.hpp"
-#include "cryptic/sha2.hpp"
+import std;
+import cryptic;
 
 using namespace std::string_literals;
 
