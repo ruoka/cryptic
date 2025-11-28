@@ -1,7 +1,9 @@
-module;
-#include <cryptic/details/assert.hpp>
+// SPDX-License-Identifier: MIT
+// See the LICENSE file in the project root for full license text.
+
 export module cryptic:base64;
 import std;
+import :details_assert;
 
 export namespace cryptic::base64 {
 
