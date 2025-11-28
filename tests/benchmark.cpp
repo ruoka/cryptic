@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 // See the LICENSE file in the project root for full license text.
-
-#include <chrono>
-#include <iostream>
-#include <iomanip>
-import cryptic;
-
 #include <sys/types.h>
 #include <openssl/sha.h>
+import cryptic;
+import std;
 
 using namespace std::literals;
 
