@@ -18,16 +18,16 @@ inline void ensures(bool condition, const char* file, int line, const char* func
     std::terminate();
 }
 
-} // namespace gsl
+} // namespace cryptic::details
 
 #ifndef __OPTIMIZE__
 
 #ifndef Expects
-#define Expects(condition) gsl::expects(condition, __FILE__, __LINE__, __func__)
+#define Expects(condition) cryptic::details::expects(condition, __FILE__, __LINE__, __func__)
 #endif
 
 #ifndef Ensures
-#define Ensures(condition) gsl::ensures(condition, __FILE__, __LINE__, __func__)
+#define Ensures(condition) cryptic::details::ensures(condition, __FILE__, __LINE__, __func__)
 #endif
 
 #else

@@ -16,12 +16,12 @@ CXX := /Library/Developer/CommandLineTools/usr/bin/clang++
 CXXFLAGS = -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
 endif
 
-CXXFLAGS += -std=c++23 -stdlib=libc++ -MMD -Wall -Wextra -I. -I$(INCDIR) -I/usr/local/ssl/include/
+CXXFLAGS += -std=c++23 -stdlib=libc++ -MMD -Wall -Wextra -I. -I$(INCDIR) -I/opt/homebrew/include/
 CXXFLAGS += -Ofast -D__OPTIMIZE__
 #CXXFLAGS += -g -DDEBUG
 #CXXFLAGS += -fprofile-instr-generate -fcoverage-mapping  -v
 CXXFLAGS += -Wno-deprecated-declarations 
-LDFLAGS += -lc++ -lcrypto -L/usr/local/ssl/lib
+LDFLAGS += -lc++ -lcrypto -L/opt/homebrew/lib
 
 ############
 
