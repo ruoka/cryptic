@@ -1,7 +1,5 @@
-
-// Copyright (c) 2017 Kaius Ruokonen
-// Distributed under the MIT software license
-// See LICENCE file or https://opensource.org/licenses/MIT
+// SPDX-License-Identifier: MIT
+// See the LICENSE file in the project root for full license text.
 
 #include <chrono>
 #include <iostream>
