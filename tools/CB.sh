@@ -85,7 +85,9 @@ INCLUDE_FLAGS=()
 # Check if we're in the cryptic project root (has cryptic/ directory and deps/)
 if [[ -d "$CURRENT_DIR/cryptic" && -d "$CURRENT_DIR/deps" ]]; then
     # cryptic project structure
+    # Note: -I "$CURRENT_DIR" is needed for #include <cryptic/base64.hpp> to work
     INCLUDE_FLAGS=(
+        -I "$CURRENT_DIR"
         -I "$CURRENT_DIR/cryptic"
         -I "$CURRENT_DIR/deps/tester/tester"
         -I "/opt/homebrew/include"
@@ -104,6 +106,7 @@ elif [[ "$CURRENT_DIR" == *"/cryptic"* ]] && [[ -d "$(cd "$CURRENT_DIR/../.." 2>
     done
     if [[ -n "$PROJECT_ROOT_FOUND" ]]; then
         INCLUDE_FLAGS=(
+            -I "$PROJECT_ROOT_FOUND"
             -I "$PROJECT_ROOT_FOUND/cryptic"
             -I "$PROJECT_ROOT_FOUND/deps/tester/tester"
             -I "/opt/homebrew/include"
