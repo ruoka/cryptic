@@ -15,4 +15,5 @@
 /Users/karu/Sources/YarDB/deps/cryptic/deps/tester/tester/tester-output.c++m	1764344563313565550
 /Users/karu/Sources/YarDB/deps/cryptic/deps/tester/tester/tester-runner.c++m	1764344563313674257
 /Users/karu/Sources/YarDB/deps/cryptic/deps/tester/tester/tester.c++m	1764344563313892964
+/Users/karu/Sources/YarDB/deps/cryptic/tests/benchmark.c++	1764350196177532483
 /Users/karu/Sources/YarDB/deps/cryptic/tests/benchmark.cpp	1764349520228568588

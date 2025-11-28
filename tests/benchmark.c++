@@ -169,3 +169,4 @@ int main()
     std::clog << "openssl SHA256 was " << static_cast<float>(t3)/t4 << " times faster\n";
     return 0;
 }
+
