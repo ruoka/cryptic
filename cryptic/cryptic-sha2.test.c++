@@ -2,8 +2,8 @@
 // Distributed under the MIT software license
 // See LICENCE file or https://opensource.org/licenses/MIT
 
-#include <string_view>
-#include "cryptic/sha2.hpp"
+import std;
+import cryptic;
 import tester;
 
 using namespace std::string_literals;

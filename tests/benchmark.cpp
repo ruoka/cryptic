@@ -5,8 +5,8 @@
 
 #include <chrono>
 #include <iostream>
-#include "cryptic/sha1.hpp"
-#include "cryptic/sha2.hpp"
+#include <iomanip>
+import cryptic;
 
 #include <sys/types.h>
 #include <openssl/sha.h>

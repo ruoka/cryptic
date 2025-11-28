@@ -1,14 +1,21 @@
-module;
-#include <cryptic/base64.hpp>
-#include <cryptic/sha1.hpp>
-#include <cryptic/sha2.hpp>
 export module cryptic;
+
+import :base64;
+import :sha1;
+import :sha2;
 
 export namespace cryptic
 {
     using namespace cryptic::base64;
     using cryptic::sha1;
-    using cryptic::sha1;
     using cryptic::sha224;
     using cryptic::sha256;
+}
+
+// Re-export base64 namespace - extend the exported namespace from the partition
+export namespace cryptic::base64 {
+    using cryptic::base64::to_character_set;
+    using cryptic::base64::to_index;
+    using cryptic::base64::encode;
+    using cryptic::base64::decode;
 }

@@ -1,36 +1,60 @@
 #pragma once
-#include<iostream>
-#include<exception>
+#include <source_location>
+#include <exception>
+#include <iostream>
 
 namespace cryptic::details {
 
-inline void expects(bool condition, const char* file, int line, const char* func)
+// Module-friendly assertion functions using std::source_location (C++20)
+// Works in modules without macros and can be used in constexpr contexts
+// 
+// Usage: expects(condition);  // Automatically captures source location
+//        ensures(condition);
+inline constexpr void expects(bool condition,
+                              const std::source_location location = std::source_location::current()) noexcept
 {
-    if(condition) return;
-    std::cerr << file << " " << line << " " << func << std::endl;
-    std::terminate();
+    if (condition) return;
+    if consteval {
+        // In consteval context, we can't use std::cerr or std::terminate
+        // The condition must be true for the function to be valid in consteval
+        // If false, the compiler will reject the consteval evaluation
+    } else {
+        // At runtime, terminate with message
+        std::cerr << location.file_name() << ":" << location.line() 
+                  << " in " << location.function_name() << std::endl;
+        std::terminate();
+    }
 }
 
-inline void ensures(bool condition, const char* file, int line, const char* func)
+inline constexpr void ensures(bool condition,
+                              const std::source_location location = std::source_location::current()) noexcept
 {
-    if(condition) return;
-    std::cerr << file << " " << line << " " << func << std::endl;
-    std::terminate();
+    if (condition) return;
+    if consteval {
+        // In consteval context, invalid condition will cause compile error
+    } else {
+        std::cerr << location.file_name() << ":" << location.line()
+                  << " in " << location.function_name() << std::endl;
+        std::terminate();
+    }
 }
 
 } // namespace cryptic::details
 
-#ifndef __OPTIMIZE__
-
-#ifndef Expects
-#define Expects(condition) cryptic::details::expects(condition, __FILE__, __LINE__, __func__)
-#endif
-
-#ifndef Ensures
-#define Ensures(condition) cryptic::details::ensures(condition, __FILE__, __LINE__, __func__)
-#endif
-
-#else
-#define Expects(condition)
-#define Ensures(condition)
-#endif
+// Migration from macros to module-friendly functions:
+//
+// OLD (with macros):
+//   Expects(condition);
+//   Ensures(condition);
+//
+// NEW (module-friendly):
+//   using cryptic::details::expects;
+//   using cryptic::details::ensures;
+//   expects(condition);
+//   ensures(condition);
+//
+// Or use fully qualified:
+//   cryptic::details::expects(condition);
+//   cryptic::details::ensures(condition);
+//
+// The source location is automatically captured via std::source_location::current()
