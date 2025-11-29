@@ -230,8 +230,8 @@ private:
         words[14] = (std::to_integer<std::uint32_t>(chunk[56]) << 24) bitor (std::to_integer<std::uint32_t>(chunk[57]) << 16) bitor (std::to_integer<std::uint32_t>(chunk[58]) <<  8) bitor (std::to_integer<std::uint32_t>(chunk[59])      );
         words[15] = (std::to_integer<std::uint32_t>(chunk[60]) << 24) bitor (std::to_integer<std::uint32_t>(chunk[61]) << 16) bitor (std::to_integer<std::uint32_t>(chunk[62]) <<  8) bitor (std::to_integer<std::uint32_t>(chunk[63])      );
 
-        // Unroll word expansion loop 4x for better performance
-        for(auto i = 16uz; i < 64uz; i += 4uz)
+        // Unroll word expansion loop 8x for better performance
+        for(auto i = 16uz; i < 64uz; i += 8uz)
         {
             const auto s0_0 = std::rotr(words[i-15], 7) xor std::rotr(words[i-15], 18) xor (words[i-15] >> 3);
             const auto s1_0 = std::rotr(words[i-2], 17) xor std::rotr(words[i-2], 19) xor (words[i-2] >> 10);
@@ -248,6 +248,22 @@ private:
             const auto s0_3 = std::rotr(words[i+3-15], 7) xor std::rotr(words[i+3-15], 18) xor (words[i+3-15] >> 3);
             const auto s1_3 = std::rotr(words[i+3-2], 17) xor std::rotr(words[i+3-2], 19) xor (words[i+3-2] >> 10);
             words[i+3] = words[i+3-16] + s0_3 + words[i+3-7] + s1_3;
+            
+            const auto s0_4 = std::rotr(words[i+4-15], 7) xor std::rotr(words[i+4-15], 18) xor (words[i+4-15] >> 3);
+            const auto s1_4 = std::rotr(words[i+4-2], 17) xor std::rotr(words[i+4-2], 19) xor (words[i+4-2] >> 10);
+            words[i+4] = words[i+4-16] + s0_4 + words[i+4-7] + s1_4;
+            
+            const auto s0_5 = std::rotr(words[i+5-15], 7) xor std::rotr(words[i+5-15], 18) xor (words[i+5-15] >> 3);
+            const auto s1_5 = std::rotr(words[i+5-2], 17) xor std::rotr(words[i+5-2], 19) xor (words[i+5-2] >> 10);
+            words[i+5] = words[i+5-16] + s0_5 + words[i+5-7] + s1_5;
+            
+            const auto s0_6 = std::rotr(words[i+6-15], 7) xor std::rotr(words[i+6-15], 18) xor (words[i+6-15] >> 3);
+            const auto s1_6 = std::rotr(words[i+6-2], 17) xor std::rotr(words[i+6-2], 19) xor (words[i+6-2] >> 10);
+            words[i+6] = words[i+6-16] + s0_6 + words[i+6-7] + s1_6;
+            
+            const auto s0_7 = std::rotr(words[i+7-15], 7) xor std::rotr(words[i+7-15], 18) xor (words[i+7-15] >> 3);
+            const auto s1_7 = std::rotr(words[i+7-2], 17) xor std::rotr(words[i+7-2], 19) xor (words[i+7-2] >> 10);
+            words[i+7] = words[i+7-16] + s0_7 + words[i+7-7] + s1_7;
         }
 
         auto a = m_message_digest[0],
@@ -259,8 +275,8 @@ private:
              g = m_message_digest[6],
              h = m_message_digest[7];
 
-        // Unroll compression loop 4x16 for better performance
-        for(auto i = 0uz; i < 64uz; i += 4uz)
+        // Unroll compression loop 8x for better performance
+        for(auto i = 0uz; i < 64uz; i += 8uz)
         {
             auto S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
             auto ch = (e bitand f) xor ((compl e) bitand g);
@@ -289,6 +305,38 @@ private:
             S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
             ch = (e bitand f) xor ((compl e) bitand g);
             temp1 = h + S1 + ch + k[i + 3] + words[i + 3];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 4] + words[i + 4];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 5] + words[i + 5];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 6] + words[i + 6];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 7] + words[i + 7];
             S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
             maj = (a bitand b) xor (a bitand c) xor (b bitand c);
             temp2 = S0 + maj;
