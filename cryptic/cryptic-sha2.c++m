@@ -87,8 +87,9 @@ public:
         auto result = std::string{};
         result.reserve(8 * N); // 4 bytes per word * 2 hex chars per byte
         
-        for(auto word : m_message_digest)
+        for(auto i = 0uz; i < N; ++i)
         {
+            const auto word = m_message_digest[i];
             result.push_back(hex_chars[(word >> 28) bitand 0xFu]);
             result.push_back(hex_chars[(word >> 24) bitand 0xFu]);
             result.push_back(hex_chars[(word >> 20) bitand 0xFu]);
