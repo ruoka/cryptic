@@ -59,13 +59,7 @@ public:
     void encode(std::span<std::byte, 4 * N> other) const noexcept
     {
         const auto bytes = std::as_bytes(std::span{m_message_digest});
-    	for(auto i = 0uz; i < other.size(); i += 4uz)
-        {
-    		other[i+0] = bytes[i+3];
-    		other[i+1] = bytes[i+2];
-    		other[i+2] = bytes[i+1];
-    		other[i+3] = bytes[i+0];
-        }
+        encode_impl(other, bytes, std::make_index_sequence<N>{});
     }
 
     std::string base64() const
@@ -135,6 +129,15 @@ public:
     }
 
 private:
+
+    template<std::size_t... Is>
+    static constexpr void encode_impl(std::span<std::byte, 4 * N> other, std::span<const std::byte> bytes, std::index_sequence<Is...>) noexcept
+    {
+        ((other[Is * 4 + 0] = bytes[Is * 4 + 3],
+          other[Is * 4 + 1] = bytes[Is * 4 + 2],
+          other[Is * 4 + 2] = bytes[Is * 4 + 1],
+          other[Is * 4 + 3] = bytes[Is * 4 + 0]), ...);
+    }
 
     static constexpr std::uint64_t chunk_size = 64u;
 
