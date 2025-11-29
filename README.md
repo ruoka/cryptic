@@ -48,3 +48,37 @@ import cryptic;
 auto test4 = cryptic::base64::decode(test3);
 std::cout << test4 << std::endl;
 ```
+
+## Benchmark
+
+The project includes a performance benchmark comparing `cryptic` implementations against OpenSSL's EVP API. The benchmark tests SHA1 and SHA256 algorithms across different message sizes.
+
+### Running the Benchmark
+
+Build and run the benchmark in release mode:
+
+```bash
+./tools/CB.sh release test
+./build-darwin-release/bin/benchmark
+```
+
+### Benchmark Results
+
+The benchmark tests three message sizes (small: 43 bytes, medium: 782 bytes, large: 8294 bytes) with 100,000 iterations per test. Results show:
+
+**SHA1 Performance:**
+- **Small messages**: `cryptic` is ~4x faster than OpenSSL
+- **Medium messages**: OpenSSL is ~1.8x faster than `cryptic`
+- **Large messages**: OpenSSL is ~2.9x faster than `cryptic`
+
+**SHA256 Performance:**
+- **Small messages**: Performance is comparable (~1.1x difference)
+- **Medium messages**: OpenSSL is ~6.6x faster than `cryptic`
+- **Large messages**: OpenSSL is ~10x faster than `cryptic`
+
+### Notes
+
+- The benchmark uses OpenSSL 3.0's modern EVP API for fair comparison
+- `cryptic` performs best on small messages, making it suitable for applications that primarily hash short strings
+- For large message hashing, OpenSSL's optimized implementations show significant performance advantages
+- The benchmark uses realistic, varied test data rather than repetitive patterns
