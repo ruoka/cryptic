@@ -4,7 +4,7 @@
 export module cryptic:sha1;
 import std;
 import :base64;
-import :details_assert;
+import :details;
 
 export namespace cryptic {
 
@@ -36,19 +36,7 @@ public:
     {
         reset();
 
-        // Convert const char* to string_view for proper span construction
-        using message_type = std::decay_t<decltype(message)>;
-        const auto bytes = [&]() {
-            if constexpr (std::is_same_v<message_type, const char*> || std::is_same_v<message_type, char*>)
-            {
-                const std::string_view sv{message};
-                return std::as_bytes(std::span{sv});
-            }
-            else
-            {
-                return std::as_bytes(std::span{message});
-            }
-        }();
+        const auto bytes = details::to_bytes_span(message);
 
         // Handle empty message explicitly
         if (bytes.size() == 0)
@@ -179,11 +167,12 @@ private:
     {
         auto words = std::array<std::uint32_t,80>{};
 
-        for(auto i = std::uint_fast8_t{0u}, j = std::uint_fast8_t{0u}; i < 16u; ++i, j += 4u)
-            words[i] = std::to_integer<std::uint32_t>(chunk[j+0]) << 24 xor
-                       std::to_integer<std::uint32_t>(chunk[j+1]) << 16 xor
-                       std::to_integer<std::uint32_t>(chunk[j+2]) <<  8 xor
-                       std::to_integer<std::uint32_t>(chunk[j+3]);
+        for(std::size_t i = 0, j = 0; i < 16; ++i, j += 4) {
+            words[i] = (std::to_integer<std::uint32_t>(chunk[j + 0]) << 24) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 1]) << 16) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 2]) <<  8) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 3])      );
+        }
 
         for(auto i = std::uint_fast8_t{16u}; i < 32u; ++i)
             words[i] = std::rotl(words[i-3] xor words[i-8] xor words[i-14] xor words[i-16], 1);

@@ -4,7 +4,7 @@
 export module cryptic:sha2;
 import std;
 import :base64;
-import :details_assert;
+import :details;
 
 export namespace cryptic {
 
@@ -37,9 +37,16 @@ public:
     {
         reset();
 
-        const auto bytes = std::as_bytes(std::span{message});
+        const auto bytes = details::to_bytes_span(message);
 
-        for(auto offset = 0ull; offset <= bytes.size(); offset += chunk_size)
+        // Handle empty message explicitly
+        if (bytes.size() == 0)
+        {
+            finalize(std::span<const std::byte>{});
+            return;
+        }
+
+        for(auto offset = 0ull; offset < bytes.size(); offset += chunk_size)
         {
             if((offset + chunk_size) <= bytes.size_bytes())
                 update(bytes.subspan(offset,chunk_size));
@@ -156,7 +163,7 @@ private:
         }
     
         std::ranges::fill(pos, length_pos, std::byte{0b00000000});
-        encode(std::span{block}.subspan<56>(), m_message_length);
+        encode(std::span{block}.subspan<56, 8>(), m_message_length);
         transform(block);
     }
 
@@ -164,11 +171,12 @@ private:
     {
         auto words = std::array<std::uint32_t,64>{};
 
-        for(auto i = std::uint_fast8_t{0u}, j = std::uint_fast8_t{0u}; i < 16u; ++i, j += 4u)
-            words[i] = std::to_integer<std::uint32_t>(chunk[j+0]) << 24 xor
-                       std::to_integer<std::uint32_t>(chunk[j+1]) << 16 xor
-                       std::to_integer<std::uint32_t>(chunk[j+2]) <<  8 xor
-                       std::to_integer<std::uint32_t>(chunk[j+3]) <<  0;
+        for(std::size_t i = 0, j = 0; i < 16; ++i, j += 4) {
+            words[i] = (std::to_integer<std::uint32_t>(chunk[j + 0]) << 24) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 1]) << 16) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 2]) <<  8) bitor
+                       (std::to_integer<std::uint32_t>(chunk[j + 3])      );
+        }
 
         for(auto i = std::uint_fast8_t{16u}; i < 64u; ++i)
         {
