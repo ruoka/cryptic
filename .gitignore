@@ -1,4 +1,36 @@
-obj
-bin
-lib
-include
+# Build artifacts
+obj/
+bin/
+lib/
+include/
+build*/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# C++23 Module Interface Files
+*.pcm
+*.ifc
+
+# Executables
+tools/cb
+openssl
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiler generated files
+*.d
+*.gcda
+*.gcno
+
+# Test artifacts
+*.test
+test_runner

@@ -36,9 +36,28 @@ public:
     {
         reset();
 
-        const auto bytes = std::as_bytes(std::span{message});
+        // Convert const char* to string_view for proper span construction
+        using message_type = std::decay_t<decltype(message)>;
+        const auto bytes = [&]() {
+            if constexpr (std::is_same_v<message_type, const char*> || std::is_same_v<message_type, char*>)
+            {
+                const std::string_view sv{message};
+                return std::as_bytes(std::span{sv});
+            }
+            else
+            {
+                return std::as_bytes(std::span{message});
+            }
+        }();
 
-        for(auto offset = 0ull; offset <= bytes.size(); offset += chunk_size)
+        // Handle empty message explicitly
+        if (bytes.size() == 0)
+        {
+            finalize(std::span<const std::byte>{});
+            return;
+        }
+
+        for(auto offset = 0ull; offset < bytes.size(); offset += chunk_size)
         {
             if((offset + chunk_size) <= bytes.size_bytes())
                 update(bytes.subspan(offset,chunk_size));
