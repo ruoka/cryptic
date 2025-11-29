@@ -201,15 +201,15 @@ private:
     
         *pos++ = std::byte{0b10000000};
     
-        const auto length_pos = block.data() + 56;
+        const auto length_pos = block.begin() + 56;
     
         if (pos > length_pos) { // no room for length → need extra block
-            std::ranges::fill(pos, block.end(), std::byte{0b00000000});
+            std::fill(pos, block.end(), std::byte{0b00000000});
             transform(block);
-            pos = block.data();
+            pos = block.begin();
         }
     
-        std::ranges::fill(pos, length_pos, std::byte{0b00000000});
+        std::fill(pos, length_pos, std::byte{0b00000000});
         encode(std::span{block}.subspan<56, 8>(), m_message_length);
         transform(block);
     }
