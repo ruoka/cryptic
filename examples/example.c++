@@ -40,6 +40,9 @@ int main()
     auto const test9 = cryptic::sha256::base64("The quick brown fox jumps over the lazy dog"s);
     std::cout << test9 << std::endl;
 
+    std::cout << cryptic::sha1::hexadecimal("abc"s) << std::endl;
+    // Expected: a9993e364706816aba3e25717850c26c9cd0d89d
+
     return 0;
 }
 

@@ -137,24 +137,27 @@ private:
         transform(chunk.subspan<0,chunk_size>());
     }
 
-    void finalize(std::span<const std::byte> chunk)
+    void finalize(std::span<const std::byte> last_chunk) noexcept
     {
-        expects(chunk.size() < chunk_size);
-        m_message_length += 8u * chunk.size_bytes(); // NOTE, bits
-        auto temp = std::array<std::byte,chunk_size>{};
-        auto result = std::ranges::copy(chunk.begin(), chunk.end(), temp.begin());
-        auto itr = result.out;
-        *itr =  std::byte{0b10000000};
-        ++itr;
-        if(std::distance(itr, temp.end()) < 8)
-        {
-            std::ranges::fill(itr, temp.end(), std::byte{0b00000000});
-            transform(temp);
-            std::ranges::fill(temp, std::byte{0b00000000});
+        expects(last_chunk.size() < chunk_size);
+        m_message_length += last_chunk.size() * 8u;
+    
+        auto block = std::array<std::byte, 64>{};
+        auto pos = std::ranges::copy(last_chunk, block.begin()).out;
+    
+        *pos++ = std::byte{0b10000000};
+    
+        const auto length_pos = block.data() + 56;
+    
+        if (pos > length_pos) { // no room for length → need extra block
+            std::ranges::fill(pos, block.end(), std::byte{0b00000000});
+            transform(block);
+            pos = block.data();
         }
-        auto length = std::span{temp}.last<8>();
-        encode(length, m_message_length);
-        transform(temp);
+    
+        std::ranges::fill(pos, length_pos, std::byte{0b00000000});
+        encode(std::span{block}.subspan<56>(), m_message_length);
+        transform(block);
     }
 
     constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
