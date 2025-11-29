@@ -219,7 +219,7 @@ private:
     {
         // Align words array for better cache performance
         alignas(32) auto words = std::array<std::uint32_t,64>{};
-        
+
         // Use restrict pointer for better compiler optimization
         const auto* __restrict chunk_data = chunk.data();
 
