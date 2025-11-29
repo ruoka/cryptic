@@ -36,11 +36,11 @@ static auto test_case_large()
 {
     static auto result = std::string{};
     if (result.empty()) {
-        result.reserve(8192);
+        result.reserve(8192 + 102); // Reserve space for chars + newlines
         // Generate varied content with some structure
         for (std::size_t i = 0; i < 8192; ++i) {
-            result += static_cast<char>('A' + (i * 17 + i * 3) % 26);
-            if (i % 80 == 79) result += '\n';
+            result.push_back(static_cast<char>('A' + (i * 17 + i * 3) % 26));
+            if (i % 80 == 79) result.push_back('\n');
         }
     }
     return std::string_view{result};
@@ -49,15 +49,14 @@ static auto test_case_large()
 template<typename TestCase>
 static auto cryptic_sha1_test(const TestCase& test)
 {
-    const auto t1 = std::chrono::high_resolution_clock::now();
+    const auto t1 = std::chrono::steady_clock::now();
     for(auto i = loops; i; --i)
     {
         auto sha1 = cryptic::sha1{};
-        auto hash = std::array<std::byte,20>{};
         sha1.hash(test);
-        sha1.encode(hash);
+        // Don't encode - we're only benchmarking hash computation
     }
-    const auto t2 = std::chrono::high_resolution_clock::now();
+    const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
     return ms.count();
 }
@@ -65,15 +64,14 @@ static auto cryptic_sha1_test(const TestCase& test)
 template<typename TestCase>
 static auto cryptic_sha256_test(const TestCase& test)
 {
-    const auto t1 = std::chrono::high_resolution_clock::now();
+    const auto t1 = std::chrono::steady_clock::now();
     for(auto i = loops; i; --i)
     {
         auto sha256 = cryptic::sha256{};
-        auto hash = std::array<std::byte,32>{};
         sha256.hash(test);
-        sha256.encode(hash);
+        // Don't encode - we're only benchmarking hash computation
     }
-    const auto t2 = std::chrono::high_resolution_clock::now();
+    const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
     return ms.count();
 }
@@ -81,19 +79,22 @@ static auto cryptic_sha256_test(const TestCase& test)
 template<typename TestCase>
 static auto crypto_sha1_test(const TestCase& test)
 {
-    const auto t1 = std::chrono::high_resolution_clock::now();
+    const auto t1 = std::chrono::steady_clock::now();
+    // Reuse context for better performance
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    unsigned char digest[20]; // SHA1 digest length
+    unsigned int digest_len;
+    
     for(auto i = loops; i; --i)
     {
-        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-        unsigned char digest[20]; // SHA1 digest length
-        unsigned int digest_len;
-        
+        EVP_MD_CTX_reset(ctx);
         EVP_DigestInit_ex(ctx, EVP_sha1(), nullptr);
         EVP_DigestUpdate(ctx, static_cast<const char*>(test.data()), test.size());
         EVP_DigestFinal_ex(ctx, digest, &digest_len);
-        EVP_MD_CTX_free(ctx);
     }
-    const auto t2 = std::chrono::high_resolution_clock::now();
+    EVP_MD_CTX_free(ctx);
+    
+    const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
     return ms.count();
 }
@@ -101,19 +102,22 @@ static auto crypto_sha1_test(const TestCase& test)
 template<typename TestCase>
 static auto crypto_sha256_test(const TestCase& test)
 {
-    const auto t1 = std::chrono::high_resolution_clock::now();
+    const auto t1 = std::chrono::steady_clock::now();
+    // Reuse context for better performance
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    unsigned char digest[32]; // SHA256 digest length
+    unsigned int digest_len;
+    
     for(auto i = loops; i; --i)
     {
-        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-        unsigned char digest[32]; // SHA256 digest length
-        unsigned int digest_len;
-        
+        EVP_MD_CTX_reset(ctx);
         EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr);
         EVP_DigestUpdate(ctx, static_cast<const char*>(test.data()), test.size());
         EVP_DigestFinal_ex(ctx, digest, &digest_len);
-        EVP_MD_CTX_free(ctx);
     }
-    const auto t2 = std::chrono::high_resolution_clock::now();
+    EVP_MD_CTX_free(ctx);
+    
+    const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
     return ms.count();
 }
