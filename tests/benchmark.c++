@@ -1,66 +1,54 @@
 // SPDX-License-Identifier: MIT
 // See the LICENSE file in the project root for full license text.
 #include <sys/types.h>
-#include <openssl/sha.h>
+#include <openssl/evp.h>
 import cryptic;
 import std;
 
 using namespace std::literals;
 
-//constexpr auto loops = 5'000'000ul;
-
 constexpr auto loops = 100'000ul;
 
-static auto test_case()
+// Realistic test data: varied content that's less compressible
+static auto test_case_medium()
 {
-return R"(XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-SHA1 benchmark against openssl crypto
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-XXXXXXXXXXXXXXXXXXXXXXXXXX
-
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
-
-XXXXXXXXXXXXXXXXXXXXXXXXXX
-
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-
-)"sv;
+    return "The quick brown fox jumps over the lazy dog. "
+           "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
+           "Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+           "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. "
+           "Duis aute irure dolor in reprehenderit in voluptate velit esse. "
+           "Excepteur sint occaecat cupidatat non proident, sunt in culpa. "
+           "Integer posuere erat a ante venenatis dapibus posuere velit aliquet. "
+           "Cras mattis consectetur purus sit amet fermentum. "
+           "Aenean eu leo quam. Pellentesque ornare sem lacinia quam venenatis. "
+           "Nullam id dolor id nibh ultricies vehicula ut id elit. "
+           "Curabitur blandit tempus porttitor. Maecenas sed diam eget risus. "
+           "Vestibulum id ligula porta felis euismod semper. "
+           "Cum sociis natoque penatibus et magnis dis parturient montes."sv;
 }
 
-static auto cryptic_hsa1_test()
+static auto test_case_small()
 {
-    const auto test = test_case();
+    return "The quick brown fox jumps over the lazy dog"sv;
+}
+
+static auto test_case_large()
+{
+    static auto result = std::string{};
+    if (result.empty()) {
+        result.reserve(8192);
+        // Generate varied content with some structure
+        for (std::size_t i = 0; i < 8192; ++i) {
+            result += static_cast<char>('A' + (i * 17 + i * 3) % 26);
+            if (i % 80 == 79) result += '\n';
+        }
+    }
+    return std::string_view{result};
+}
+
+template<typename TestCase>
+static auto cryptic_sha1_test(const TestCase& test)
+{
     const auto t1 = std::chrono::high_resolution_clock::now();
     for(auto i = loops; i; --i)
     {
@@ -68,21 +56,15 @@ static auto cryptic_hsa1_test()
         auto hash = std::array<std::byte,20>{};
         sha1.hash(test);
         sha1.encode(hash);
- 
-        if(i == 1)
-        {
-            std::clog << cryptic::sha1::hexadecimal(test) << '\n';
-        }
     }
     const auto t2 = std::chrono::high_resolution_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-
     return ms.count();
 }
 
-static auto cryptic_hsa256_test()
+template<typename TestCase>
+static auto cryptic_sha256_test(const TestCase& test)
 {
-    const auto test = test_case();
     const auto t1 = std::chrono::high_resolution_clock::now();
     for(auto i = loops; i; --i)
     {
@@ -90,83 +72,90 @@ static auto cryptic_hsa256_test()
         auto hash = std::array<std::byte,32>{};
         sha256.hash(test);
         sha256.encode(hash);
-
-        if(i == 1)
-        {
-           std::clog << cryptic::sha256::hexadecimal(test) << '\n';
-        }
     }
     const auto t2 = std::chrono::high_resolution_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-
     return ms.count();
 }
 
-static auto crypto_hsa1_test()
+template<typename TestCase>
+static auto crypto_sha1_test(const TestCase& test)
 {
-    const auto test = test_case();
     const auto t1 = std::chrono::high_resolution_clock::now();
     for(auto i = loops; i; --i)
     {
-        SHA_CTX ctx;
-        unsigned char digest[SHA_DIGEST_LENGTH];
-        SHA1_Init(&ctx);
-        SHA1_Update(&ctx, static_cast<const char*>(test.data()), test.size());
-        SHA1_Final(digest, &ctx);
- 
-        if(i == 1)
-        {
-            for(auto i = 0u; i < SHA_DIGEST_LENGTH; ++i)
-                std::clog << std::setw(2) << std::setfill('0') << std::hex << static_cast<unsigned>(digest[i]);
-            std::clog << std::dec << '\n';
-        }
+        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+        unsigned char digest[20]; // SHA1 digest length
+        unsigned int digest_len;
+        
+        EVP_DigestInit_ex(ctx, EVP_sha1(), nullptr);
+        EVP_DigestUpdate(ctx, static_cast<const char*>(test.data()), test.size());
+        EVP_DigestFinal_ex(ctx, digest, &digest_len);
+        EVP_MD_CTX_free(ctx);
     }
     const auto t2 = std::chrono::high_resolution_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-
     return ms.count();
 }
 
-static auto crypto_hsa256_test()
+template<typename TestCase>
+static auto crypto_sha256_test(const TestCase& test)
 {
-    const auto test = test_case();
     const auto t1 = std::chrono::high_resolution_clock::now();
     for(auto i = loops; i; --i)
     {
-        SHA256_CTX ctx;
-        unsigned char digest[SHA256_DIGEST_LENGTH];
-        SHA256_Init(&ctx);
-        SHA256_Update(&ctx, static_cast<const char*>(test.data()), test.size());
-        SHA256_Final(digest, &ctx);
- 
-         if(i == 1)
-        {
-            for(auto i = 0u; i < SHA256_DIGEST_LENGTH; ++i)
-                std::clog << std::setw(2) << std::setfill('0') << std::hex << static_cast<unsigned>(digest[i]);
-            std::clog << std::dec << '\n';
-        }
-
+        EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+        unsigned char digest[32]; // SHA256 digest length
+        unsigned int digest_len;
+        
+        EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr);
+        EVP_DigestUpdate(ctx, static_cast<const char*>(test.data()), test.size());
+        EVP_DigestFinal_ex(ctx, digest, &digest_len);
+        EVP_MD_CTX_free(ctx);
     }
     const auto t2 = std::chrono::high_resolution_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-
     return ms.count();
+}
+
+void benchmark_size(std::string_view name, std::string_view test_data)
+{
+    std::clog << "\n=== " << name << " (" << test_data.size() << " bytes) ===\n";
+    
+    // SHA1 benchmarks
+    std::clog << "SHA1:\n";
+    auto const t1 = cryptic_sha1_test(test_data);
+    std::clog << "  cryptic:    " << t1 << " ms\n";
+    auto const t2 = crypto_sha1_test(test_data);
+    std::clog << "  openssl:    " << t2 << " ms\n";
+    const auto ratio1 = static_cast<float>(t1) / t2;
+    if (ratio1 > 1.0f)
+        std::clog << "  openssl is " << std::fixed << std::setprecision(2) << ratio1 << "x faster\n";
+    else
+        std::clog << "  cryptic is " << std::fixed << std::setprecision(2) << (1.0f / ratio1) << "x faster\n";
+    
+    // SHA256 benchmarks
+    std::clog << "SHA256:\n";
+    auto const t3 = cryptic_sha256_test(test_data);
+    std::clog << "  cryptic:    " << t3 << " ms\n";
+    auto const t4 = crypto_sha256_test(test_data);
+    std::clog << "  openssl:    " << t4 << " ms\n";
+    const auto ratio2 = static_cast<float>(t3) / t4;
+    if (ratio2 > 1.0f)
+        std::clog << "  openssl is " << std::fixed << std::setprecision(2) << ratio2 << "x faster\n";
+    else
+        std::clog << "  cryptic is " << std::fixed << std::setprecision(2) << (1.0f / ratio2) << "x faster\n";
 }
 
 int main()
 {
-    std::clog << "SHA1 & SHA256 benchmark against openssl crypto - "
-              << "looping " << loops << " times:\n";
-    auto const t1 = cryptic_hsa1_test();
-    std::clog << "cryptic SHA1: " << t1 << " ms\n";
-    auto const t2 = crypto_hsa1_test();
-    std::clog << "openssl crypto SHA1: "<< t2 << " ms\n";
-    std::clog << "openssl SHA1 was " << static_cast<float>(t1)/t2 << " times faster\n";
-    auto const t3 = cryptic_hsa256_test();
-    std::clog << "cryptic SHA256: "<< t3 << " ms\n";
-    auto const t4 = crypto_hsa256_test();
-    std::clog << "openssl crypto SHA256: " << t4 << " ms\n";
-    std::clog << "openssl SHA256 was " << static_cast<float>(t3)/t4 << " times faster\n";
+    std::clog << "SHA1 & SHA256 benchmark against OpenSSL crypto\n";
+    std::clog << "Looping " << loops << " times per test\n";
+    
+    benchmark_size("Small message", test_case_small());
+    benchmark_size("Medium message", test_case_medium());
+    benchmark_size("Large message", test_case_large());
+    
     return 0;
 }
 
