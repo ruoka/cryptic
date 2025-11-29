@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // See the LICENSE file in the project root for full license text.
 
-export module cryptic:details_assert;
+export module cryptic:details;
 import std;
 
 export namespace cryptic::details {
@@ -40,23 +40,20 @@ inline constexpr void ensures(bool condition,
     }
 }
 
+// Helper to convert message to bytes span, handling const char* properly
+template<typename Message>
+inline constexpr auto to_bytes_span(Message&& message) noexcept
+{
+    using message_type = std::decay_t<Message>;
+    if constexpr (std::is_same_v<message_type, const char*> or std::is_same_v<message_type, char*>)
+    {
+        const std::string_view sv{message};
+        return std::as_bytes(std::span{sv});
+    }
+    else
+    {
+        return std::as_bytes(std::span{message});
+    }
+}
+
 } // namespace cryptic::details
-
-// Migration from macros to module-friendly functions:
-//
-// OLD (with macros):
-//   Expects(condition);
-//   Ensures(condition);
-//
-// NEW (module-friendly):
-//   using cryptic::details::expects;
-//   using cryptic::details::ensures;
-//   expects(condition);
-//   ensures(condition);
-//
-// Or use fully qualified:
-//   cryptic::details::expects(condition);
-//   cryptic::details::ensures(condition);
-//
-// The source location is automatically captured via std::source_location::current()
-

@@ -3,7 +3,7 @@
 
 export module cryptic:base64;
 import std;
-import :details_assert;
+import :details;
 
 export namespace cryptic::base64 {
 
