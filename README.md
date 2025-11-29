@@ -9,6 +9,15 @@ The project uses [tester](https://github.com/ruoka/tester) for testing and C++ B
 ./tools/CB.sh test
 ```
 
+### Additional Compiler Flags
+
+You can add extra compiler flags using the `-X` or `--extra-flags` option:
+
+```bash
+./tools/CB.sh -X "-march=native -funroll-loops" release build
+./tools/CB.sh --extra-flags "-march=native" release test
+```
+
 ## Usage
 
 Import the `cryptic` module and use the algorithms:
@@ -82,4 +91,12 @@ The benchmark tests three message sizes (small: 43 bytes, medium: 782 bytes, lar
 - `cryptic` performs best on small messages, making it suitable for applications that primarily hash short strings
 - For large message hashing, OpenSSL's optimized implementations show significant performance advantages
 - The benchmark uses realistic, varied test data rather than repetitive patterns
-- Recent optimizations include extensive loop unrolling, compiler hints, and special-casing for small messages
+
+### Optimizations
+
+Recent optimizations include:
+- **Loop unrolling**: Extensive unrolling of word loading, expansion, and compression loops
+- **Compiler hints**: Hot function attributes and always-inline hints for critical paths
+- **Small message optimization**: Special-casing for single-chunk messages to avoid loop overhead
+- **Memory access patterns**: Prefetching, restrict pointers, and cache-aligned data structures
+- **Template-based unrolling**: Compile-time unrolling of hexadecimal encoding loops
