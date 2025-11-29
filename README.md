@@ -76,14 +76,14 @@ Build and run the benchmark in release mode:
 The benchmark tests three message sizes (small: 43 bytes, medium: 782 bytes, large: 8294 bytes) with 100,000 iterations per test. Results show:
 
 **SHA1 Performance:**
-- **Small messages**: `cryptic` is ~2.4x faster than OpenSSL
-- **Medium messages**: OpenSSL is ~2.4x faster than `cryptic`
+- **Small messages**: `cryptic` is ~2.5-2.7x faster than OpenSSL
+- **Medium messages**: OpenSSL is ~2.3x faster than `cryptic`
 - **Large messages**: OpenSSL is ~3.6x faster than `cryptic`
 
 **SHA256 Performance:**
-- **Small messages**: `cryptic` is ~1.1x faster than OpenSSL
-- **Medium messages**: OpenSSL is ~5.2x faster than `cryptic`
-- **Large messages**: OpenSSL is ~8.0x faster than `cryptic`
+- **Small messages**: `cryptic` is ~1.1-1.2x faster than OpenSSL
+- **Medium messages**: OpenSSL is ~5.3x faster than `cryptic`
+- **Large messages**: OpenSSL is ~8.1x faster than `cryptic`
 
 ### Notes
 
