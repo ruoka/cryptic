@@ -46,12 +46,13 @@ public:
             return;
         }
 
-        for(auto offset = 0ull; offset < bytes.size(); offset += chunk_size)
+        const auto total_size = bytes.size();
+        for(auto offset = 0ull; offset < total_size; offset += chunk_size)
         {
-            if((offset + chunk_size) <= bytes.size_bytes())
-                update(bytes.subspan(offset,chunk_size));
+            if((offset + chunk_size) <= total_size)
+                update(bytes.subspan(offset, chunk_size));
             else
-                finalize(bytes.subspan(offset, bytes.size_bytes() - offset));
+                finalize(bytes.subspan(offset, total_size - offset));
         }
     }
 
@@ -82,10 +83,22 @@ public:
 
     std::string hexadecimal() const
     {
-        auto ss = std::stringstream{};
-        for(auto i = std::uint_fast8_t{0u}; i < N; ++i)
-            ss << std::setw(8) << std::setfill('0') << std::hex << m_message_digest[i];
-        return ss.str();
+        constexpr const char hex_chars[] = "0123456789abcdef";
+        auto result = std::string{};
+        result.reserve(8 * N); // 4 bytes per word * 2 hex chars per byte
+        
+        for(auto word : m_message_digest)
+        {
+            result.push_back(hex_chars[(word >> 28) bitand 0xFu]);
+            result.push_back(hex_chars[(word >> 24) bitand 0xFu]);
+            result.push_back(hex_chars[(word >> 20) bitand 0xFu]);
+            result.push_back(hex_chars[(word >> 16) bitand 0xFu]);
+            result.push_back(hex_chars[(word >> 12) bitand 0xFu]);
+            result.push_back(hex_chars[(word >>  8) bitand 0xFu]);
+            result.push_back(hex_chars[(word >>  4) bitand 0xFu]);
+            result.push_back(hex_chars[(word >>  0) bitand 0xFu]);
+        }
+        return result;
     }
 
     static std::string hexadecimal(auto message)
