@@ -243,39 +243,49 @@ private:
         words[15] = (std::to_integer<std::uint32_t>(chunk_data[60]) << 24) bitor (std::to_integer<std::uint32_t>(chunk_data[61]) << 16) bitor (std::to_integer<std::uint32_t>(chunk_data[62]) <<  8) bitor (std::to_integer<std::uint32_t>(chunk_data[63])      );
 
         // Unroll word expansion loop 8x for better performance
+        // Cache frequently accessed words to reduce redundant array indexing
         for(auto i = 16uz; i < 64uz; i += 8uz)
         {
-            const auto s0_0 = std::rotr(words[i-15], 7) xor std::rotr(words[i-15], 18) xor (words[i-15] >> 3);
-            const auto s1_0 = std::rotr(words[i-2], 17) xor std::rotr(words[i-2], 19) xor (words[i-2] >> 10);
-            words[i] = words[i-16] + s0_0 + words[i-7] + s1_0;
+            // Cache words[i-15], words[i-2], words[i-16], words[i-7] for all 8 iterations
+            const auto w_m15_0 = words[i-15], w_m2_0 = words[i-2], w_m16_0 = words[i-16], w_m7_0 = words[i-7];
+            const auto s0_0 = std::rotr(w_m15_0, 7) xor std::rotr(w_m15_0, 18) xor (w_m15_0 >> 3);
+            const auto s1_0 = std::rotr(w_m2_0, 17) xor std::rotr(w_m2_0, 19) xor (w_m2_0 >> 10);
+            words[i] = w_m16_0 + s0_0 + w_m7_0 + s1_0;
             
-            const auto s0_1 = std::rotr(words[i+1-15], 7) xor std::rotr(words[i+1-15], 18) xor (words[i+1-15] >> 3);
-            const auto s1_1 = std::rotr(words[i+1-2], 17) xor std::rotr(words[i+1-2], 19) xor (words[i+1-2] >> 10);
-            words[i+1] = words[i+1-16] + s0_1 + words[i+1-7] + s1_1;
+            const auto w_m15_1 = words[i+1-15], w_m2_1 = words[i+1-2], w_m16_1 = words[i+1-16], w_m7_1 = words[i+1-7];
+            const auto s0_1 = std::rotr(w_m15_1, 7) xor std::rotr(w_m15_1, 18) xor (w_m15_1 >> 3);
+            const auto s1_1 = std::rotr(w_m2_1, 17) xor std::rotr(w_m2_1, 19) xor (w_m2_1 >> 10);
+            words[i+1] = w_m16_1 + s0_1 + w_m7_1 + s1_1;
             
-            const auto s0_2 = std::rotr(words[i+2-15], 7) xor std::rotr(words[i+2-15], 18) xor (words[i+2-15] >> 3);
-            const auto s1_2 = std::rotr(words[i+2-2], 17) xor std::rotr(words[i+2-2], 19) xor (words[i+2-2] >> 10);
-            words[i+2] = words[i+2-16] + s0_2 + words[i+2-7] + s1_2;
+            const auto w_m15_2 = words[i+2-15], w_m2_2 = words[i+2-2], w_m16_2 = words[i+2-16], w_m7_2 = words[i+2-7];
+            const auto s0_2 = std::rotr(w_m15_2, 7) xor std::rotr(w_m15_2, 18) xor (w_m15_2 >> 3);
+            const auto s1_2 = std::rotr(w_m2_2, 17) xor std::rotr(w_m2_2, 19) xor (w_m2_2 >> 10);
+            words[i+2] = w_m16_2 + s0_2 + w_m7_2 + s1_2;
             
-            const auto s0_3 = std::rotr(words[i+3-15], 7) xor std::rotr(words[i+3-15], 18) xor (words[i+3-15] >> 3);
-            const auto s1_3 = std::rotr(words[i+3-2], 17) xor std::rotr(words[i+3-2], 19) xor (words[i+3-2] >> 10);
-            words[i+3] = words[i+3-16] + s0_3 + words[i+3-7] + s1_3;
+            const auto w_m15_3 = words[i+3-15], w_m2_3 = words[i+3-2], w_m16_3 = words[i+3-16], w_m7_3 = words[i+3-7];
+            const auto s0_3 = std::rotr(w_m15_3, 7) xor std::rotr(w_m15_3, 18) xor (w_m15_3 >> 3);
+            const auto s1_3 = std::rotr(w_m2_3, 17) xor std::rotr(w_m2_3, 19) xor (w_m2_3 >> 10);
+            words[i+3] = w_m16_3 + s0_3 + w_m7_3 + s1_3;
             
-            const auto s0_4 = std::rotr(words[i+4-15], 7) xor std::rotr(words[i+4-15], 18) xor (words[i+4-15] >> 3);
-            const auto s1_4 = std::rotr(words[i+4-2], 17) xor std::rotr(words[i+4-2], 19) xor (words[i+4-2] >> 10);
-            words[i+4] = words[i+4-16] + s0_4 + words[i+4-7] + s1_4;
+            const auto w_m15_4 = words[i+4-15], w_m2_4 = words[i+4-2], w_m16_4 = words[i+4-16], w_m7_4 = words[i+4-7];
+            const auto s0_4 = std::rotr(w_m15_4, 7) xor std::rotr(w_m15_4, 18) xor (w_m15_4 >> 3);
+            const auto s1_4 = std::rotr(w_m2_4, 17) xor std::rotr(w_m2_4, 19) xor (w_m2_4 >> 10);
+            words[i+4] = w_m16_4 + s0_4 + w_m7_4 + s1_4;
             
-            const auto s0_5 = std::rotr(words[i+5-15], 7) xor std::rotr(words[i+5-15], 18) xor (words[i+5-15] >> 3);
-            const auto s1_5 = std::rotr(words[i+5-2], 17) xor std::rotr(words[i+5-2], 19) xor (words[i+5-2] >> 10);
-            words[i+5] = words[i+5-16] + s0_5 + words[i+5-7] + s1_5;
+            const auto w_m15_5 = words[i+5-15], w_m2_5 = words[i+5-2], w_m16_5 = words[i+5-16], w_m7_5 = words[i+5-7];
+            const auto s0_5 = std::rotr(w_m15_5, 7) xor std::rotr(w_m15_5, 18) xor (w_m15_5 >> 3);
+            const auto s1_5 = std::rotr(w_m2_5, 17) xor std::rotr(w_m2_5, 19) xor (w_m2_5 >> 10);
+            words[i+5] = w_m16_5 + s0_5 + w_m7_5 + s1_5;
             
-            const auto s0_6 = std::rotr(words[i+6-15], 7) xor std::rotr(words[i+6-15], 18) xor (words[i+6-15] >> 3);
-            const auto s1_6 = std::rotr(words[i+6-2], 17) xor std::rotr(words[i+6-2], 19) xor (words[i+6-2] >> 10);
-            words[i+6] = words[i+6-16] + s0_6 + words[i+6-7] + s1_6;
+            const auto w_m15_6 = words[i+6-15], w_m2_6 = words[i+6-2], w_m16_6 = words[i+6-16], w_m7_6 = words[i+6-7];
+            const auto s0_6 = std::rotr(w_m15_6, 7) xor std::rotr(w_m15_6, 18) xor (w_m15_6 >> 3);
+            const auto s1_6 = std::rotr(w_m2_6, 17) xor std::rotr(w_m2_6, 19) xor (w_m2_6 >> 10);
+            words[i+6] = w_m16_6 + s0_6 + w_m7_6 + s1_6;
             
-            const auto s0_7 = std::rotr(words[i+7-15], 7) xor std::rotr(words[i+7-15], 18) xor (words[i+7-15] >> 3);
-            const auto s1_7 = std::rotr(words[i+7-2], 17) xor std::rotr(words[i+7-2], 19) xor (words[i+7-2] >> 10);
-            words[i+7] = words[i+7-16] + s0_7 + words[i+7-7] + s1_7;
+            const auto w_m15_7 = words[i+7-15], w_m2_7 = words[i+7-2], w_m16_7 = words[i+7-16], w_m7_7 = words[i+7-7];
+            const auto s0_7 = std::rotr(w_m15_7, 7) xor std::rotr(w_m15_7, 18) xor (w_m15_7 >> 3);
+            const auto s1_7 = std::rotr(w_m2_7, 17) xor std::rotr(w_m2_7, 19) xor (w_m2_7 >> 10);
+            words[i+7] = w_m16_7 + s0_7 + w_m7_7 + s1_7;
         }
 
         auto a = m_message_digest[0],
@@ -294,7 +304,7 @@ private:
             auto ch = (e bitand f) xor ((compl e) bitand g);
             auto temp1 = h + S1 + ch + k[i + 0] + words[i + 0];
             auto S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
-            auto maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            auto maj = (a bitand b) xor ((a xor b) bitand c);
             auto temp2 = S0 + maj;
             h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
             
