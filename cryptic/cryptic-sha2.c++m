@@ -33,6 +33,7 @@ public:
 
     sha2(sha2&&) = default;
 
+    __attribute__((hot))
     void hash(auto message) noexcept
     {
         reset();
@@ -47,12 +48,26 @@ public:
         }
 
         const auto total_size = bytes.size();
-        for(auto offset = 0ull; offset < total_size; offset += chunk_size)
+        
+        // Optimize common case: single chunk (< 64 bytes) - avoid loop overhead
+        if (total_size < chunk_size)
         {
-            if((offset + chunk_size) <= total_size)
-                update(bytes.subspan(offset, chunk_size));
-            else
-                finalize(bytes.subspan(offset, total_size - offset));
+            finalize(std::span<const std::byte>{bytes.data(), total_size});
+            return;
+        }
+
+        // Multiple chunks: process full chunks first
+        std::size_t offset = 0;
+        while (offset + chunk_size <= total_size)
+        {
+            update(std::span<const std::byte>{bytes.data() + offset, chunk_size});
+            offset += chunk_size;
+        }
+        
+        // Finalize remaining bytes
+        if (offset < total_size)
+        {
+            finalize(std::span<const std::byte>{bytes.data() + offset, total_size - offset});
         }
     }
 
@@ -141,7 +156,8 @@ private:
 
     static constexpr std::uint64_t chunk_size = 64u;
 
-    constexpr void reset()
+    __attribute__((always_inline))
+    constexpr void reset() noexcept
     {
         m_message_length = 0ull;
         m_message_digest[0] = H0;
@@ -154,13 +170,15 @@ private:
         m_message_digest[7] = H7;
     }
 
+    __attribute__((hot))
     void update(std::span<const std::byte> chunk) noexcept
     {
         expects(chunk.size() == chunk_size);
         m_message_length += 8u * chunk_size; // NOTE, bits
-        transform(chunk.subspan<0,chunk_size>());
+        transform(std::span<const std::byte, chunk_size>{chunk.data(), chunk_size});
     }
 
+    __attribute__((hot, always_inline))
     void finalize(std::span<const std::byte> last_chunk) noexcept
     {
         expects(last_chunk.size() < chunk_size);
@@ -184,6 +202,7 @@ private:
         transform(block);
     }
 
+    __attribute__((hot, always_inline))
     constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
     {
         auto words = std::array<std::uint32_t,64>{};
@@ -208,11 +227,24 @@ private:
                            (std::to_integer<std::uint32_t>(chunk[j + 15])      );
         }
 
-        for(auto i = 16uz; i < 64uz; ++i)
+        // Unroll word expansion loop 4x for better performance
+        for(auto i = 16uz; i < 64uz; i += 4uz)
         {
-            const auto s0 = std::rotr(words[i-15], 7) xor std::rotr(words[i-15], 18) xor (words[i-15] >> 3);
-            const auto s1 = std::rotr(words[i-2], 17) xor std::rotr(words[i-2], 19) xor (words[i-2] >> 10);
-            words[i] = words[i-16] + s0 + words[i-7] + s1;
+            const auto s0_0 = std::rotr(words[i-15], 7) xor std::rotr(words[i-15], 18) xor (words[i-15] >> 3);
+            const auto s1_0 = std::rotr(words[i-2], 17) xor std::rotr(words[i-2], 19) xor (words[i-2] >> 10);
+            words[i] = words[i-16] + s0_0 + words[i-7] + s1_0;
+            
+            const auto s0_1 = std::rotr(words[i+1-15], 7) xor std::rotr(words[i+1-15], 18) xor (words[i+1-15] >> 3);
+            const auto s1_1 = std::rotr(words[i+1-2], 17) xor std::rotr(words[i+1-2], 19) xor (words[i+1-2] >> 10);
+            words[i+1] = words[i+1-16] + s0_1 + words[i+1-7] + s1_1;
+            
+            const auto s0_2 = std::rotr(words[i+2-15], 7) xor std::rotr(words[i+2-15], 18) xor (words[i+2-15] >> 3);
+            const auto s1_2 = std::rotr(words[i+2-2], 17) xor std::rotr(words[i+2-2], 19) xor (words[i+2-2] >> 10);
+            words[i+2] = words[i+2-16] + s0_2 + words[i+2-7] + s1_2;
+            
+            const auto s0_3 = std::rotr(words[i+3-15], 7) xor std::rotr(words[i+3-15], 18) xor (words[i+3-15] >> 3);
+            const auto s1_3 = std::rotr(words[i+3-2], 17) xor std::rotr(words[i+3-2], 19) xor (words[i+3-2] >> 10);
+            words[i+3] = words[i+3-16] + s0_3 + words[i+3-7] + s1_3;
         }
 
         auto a = m_message_digest[0],

@@ -32,6 +32,7 @@ public:
         hash(message);
     }
 
+    __attribute__((hot))
     void hash(auto message) noexcept
     {
         reset();
@@ -46,12 +47,26 @@ public:
         }
 
         const auto total_size = bytes.size();
-        for(auto offset = 0ull; offset < total_size; offset += chunk_size)
+        
+        // Optimize common case: single chunk (< 64 bytes) - avoid loop overhead
+        if (total_size < chunk_size)
         {
-            if((offset + chunk_size) <= total_size)
-                update(bytes.subspan(offset, chunk_size));
-            else
-                finalize(bytes.subspan(offset, total_size - offset));
+            finalize(std::span<const std::byte>{bytes.data(), total_size});
+            return;
+        }
+
+        // Multiple chunks: process full chunks first
+        std::size_t offset = 0;
+        while (offset + chunk_size <= total_size)
+        {
+            update(std::span<const std::byte>{bytes.data() + offset, chunk_size});
+            offset += chunk_size;
+        }
+        
+        // Finalize remaining bytes
+        if (offset < total_size)
+        {
+            finalize(std::span<const std::byte>{bytes.data() + offset, total_size - offset});
         }
     }
 
@@ -139,7 +154,8 @@ private:
 
     static constexpr std::uint64_t chunk_size = 64u;
 
-    constexpr void reset()
+    __attribute__((always_inline))
+    constexpr void reset() noexcept
     {
         m_message_length = 0ull;
         m_message_digest[0] = 0x67452301u;
@@ -149,13 +165,15 @@ private:
         m_message_digest[4] = 0xC3D2E1F0u;
     }
 
+    __attribute__((hot))
     void update(std::span<const std::byte> chunk) noexcept
     {
         expects(chunk.size() == chunk_size);
         m_message_length += 8u * chunk_size; // NOTE, bits
-        transform(chunk.subspan<0,chunk_size>());
+        transform(std::span<const std::byte, chunk_size>{chunk.data(), chunk_size});
     }
 
+    __attribute__((hot, always_inline))
     void finalize(std::span<const std::byte> chunk)
     {
         expects(chunk.size() < chunk_size);
@@ -176,6 +194,7 @@ private:
         transform(temp);
     }
 
+    __attribute__((hot, always_inline))
     constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
     {
         auto words = std::array<std::uint32_t,80>{};
@@ -200,11 +219,22 @@ private:
                            (std::to_integer<std::uint32_t>(chunk[j + 15])      );
         }
 
-        for(auto i = 16uz; i < 32uz; ++i)
-            words[i] = std::rotl(words[i-3] xor words[i-8] xor words[i-14] xor words[i-16], 1);
+        // Unroll word expansion loops 4x for better performance
+        for(auto i = 16uz; i < 32uz; i += 4uz)
+        {
+            words[i+0] = std::rotl(words[i+0-3] xor words[i+0-8] xor words[i+0-14] xor words[i+0-16], 1);
+            words[i+1] = std::rotl(words[i+1-3] xor words[i+1-8] xor words[i+1-14] xor words[i+1-16], 1);
+            words[i+2] = std::rotl(words[i+2-3] xor words[i+2-8] xor words[i+2-14] xor words[i+2-16], 1);
+            words[i+3] = std::rotl(words[i+3-3] xor words[i+3-8] xor words[i+3-14] xor words[i+3-16], 1);
+        }
 
-        for(auto i = 32uz; i < 80uz; ++i)
-            words[i] = std::rotl(words[i-6] xor words[i-16] xor words[i-28] xor words[i-32], 2);
+        for(auto i = 32uz; i < 80uz; i += 4uz)
+        {
+            words[i+0] = std::rotl(words[i+0-6] xor words[i+0-16] xor words[i+0-28] xor words[i+0-32], 2);
+            words[i+1] = std::rotl(words[i+1-6] xor words[i+1-16] xor words[i+1-28] xor words[i+1-32], 2);
+            words[i+2] = std::rotl(words[i+2-6] xor words[i+2-16] xor words[i+2-28] xor words[i+2-32], 2);
+            words[i+3] = std::rotl(words[i+3-6] xor words[i+3-16] xor words[i+3-28] xor words[i+3-32], 2);
+        }
 
         auto a = m_message_digest[0],
              b = m_message_digest[1],
@@ -215,10 +245,10 @@ private:
              k = 0u;
 
         // Unroll compression loop 4x5 for better performance
+        k = 0x5A827999u;
         for(auto i = 0uz; i < 20uz; i += 4uz)
         {
             f = (b bitand c) bitor ((compl b) bitand d);
-            k = 0x5A827999u;
             auto temp = std::rotl(a,5) + f + e + k + words[i + 0];
             e = d; d = c; c = std::rotl(b,30); b = a; a = temp;
             
