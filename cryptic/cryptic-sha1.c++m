@@ -73,7 +73,7 @@ public:
         // Finalize remaining bytes
         if (offset < total_size)
         {
-            finalize(std::span<const std::byte>{bytes.data() + offset, total_size - offset});
+            finalize(std::span<const std::byte>{data_ptr + offset, total_size - offset});
         }
     }
 
@@ -224,8 +224,8 @@ private:
     __attribute__((hot, always_inline))
     constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
     {
-        // Align words array for better cache performance
-        alignas(32) auto words = std::array<std::uint32_t,80>{};
+        // Stack allocation is fast; alignment overhead not worth it for hot path
+        auto words = std::array<std::uint32_t,80>{};
         
         // Use restrict pointer for better compiler optimization
         const auto* __restrict chunk_data = chunk.data();
