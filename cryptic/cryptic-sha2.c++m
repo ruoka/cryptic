@@ -59,7 +59,7 @@ public:
     void encode(std::span<std::byte, 4 * N> other) const noexcept
     {
         const auto bytes = std::as_bytes(std::span{m_message_digest});
-    	for(auto i = std::uint_fast8_t{0u}; i < other.size(); i += 4u)
+    	for(auto i = 0uz; i < other.size(); i += 4uz)
         {
     		other[i+0] = bytes[i+3];
     		other[i+1] = bytes[i+2];
@@ -114,7 +114,7 @@ public:
 
     bool operator < (const sha2& other) const noexcept
     {
-    	for(auto i = std::uint_fast8_t{0u}; i < N; ++i)
+    	for(auto i = 0uz; i < N; ++i)
             if(m_message_digest[i] != other.m_message_digest[i])
                 return m_message_digest[i] < other.m_message_digest[i];
         return false;
@@ -123,7 +123,7 @@ public:
     bool operator < (std::span<const std::byte, 4 * N> other) const noexcept
     {
         const auto bytes = std::as_bytes(std::span{m_message_digest});
-    	for(auto i = std::uint_fast8_t{0u}; i < other.size(); i += 4u)
+    	for(auto i = 0uz; i < other.size(); i += 4uz)
         {
     		if(bytes[i+3] != other[i+0]) return bytes[i+3] < other[i+0];
     		if(bytes[i+2] != other[i+1]) return bytes[i+2] < other[i+1];
@@ -184,14 +184,27 @@ private:
     {
         auto words = std::array<std::uint32_t,64>{};
 
-        for(std::size_t i = 0, j = 0; i < 16; ++i, j += 4) {
-            words[i] = (std::to_integer<std::uint32_t>(chunk[j + 0]) << 24) bitor
-                       (std::to_integer<std::uint32_t>(chunk[j + 1]) << 16) bitor
-                       (std::to_integer<std::uint32_t>(chunk[j + 2]) <<  8) bitor
-                       (std::to_integer<std::uint32_t>(chunk[j + 3])      );
+        // Unroll word loading loop 4x4 for better performance
+        for(std::size_t i = 0, j = 0; i < 16; i += 4, j += 16) {
+            words[i + 0] = (std::to_integer<std::uint32_t>(chunk[j +  0]) << 24) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  1]) << 16) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  2]) <<  8) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  3])      );
+            words[i + 1] = (std::to_integer<std::uint32_t>(chunk[j +  4]) << 24) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  5]) << 16) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  6]) <<  8) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  7])      );
+            words[i + 2] = (std::to_integer<std::uint32_t>(chunk[j +  8]) << 24) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j +  9]) << 16) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j + 10]) <<  8) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j + 11])      );
+            words[i + 3] = (std::to_integer<std::uint32_t>(chunk[j + 12]) << 24) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j + 13]) << 16) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j + 14]) <<  8) bitor
+                           (std::to_integer<std::uint32_t>(chunk[j + 15])      );
         }
 
-        for(auto i = std::uint_fast8_t{16u}; i < 64u; ++i)
+        for(auto i = 16uz; i < 64uz; ++i)
         {
             const auto s0 = std::rotr(words[i-15], 7) xor std::rotr(words[i-15], 18) xor (words[i-15] >> 3);
             const auto s1 = std::rotr(words[i-2], 17) xor std::rotr(words[i-2], 19) xor (words[i-2] >> 10);
@@ -207,23 +220,40 @@ private:
              g = m_message_digest[6],
              h = m_message_digest[7];
 
-        for(auto i = std::uint_fast8_t{0u}; i < 64u; ++i)
+        // Unroll compression loop 4x16 for better performance
+        for(auto i = 0uz; i < 64uz; i += 4uz)
         {
-            const auto S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
-            const auto ch = (e bitand f) xor ((compl e) bitand g);
-            const auto temp1 = h + S1 + ch + k[i] + words[i];
-            const auto S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
-            const auto maj = (a bitand b) xor (a bitand c) xor (b bitand c);
-            const auto temp2 = S0 + maj;
-
-            h = g;
-            g = f;
-            f = e;
-            e = d + temp1;
-            d = c;
-            c = b;
-            b = a;
-            a = temp1 + temp2;
+            auto S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            auto ch = (e bitand f) xor ((compl e) bitand g);
+            auto temp1 = h + S1 + ch + k[i + 0] + words[i + 0];
+            auto S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            auto maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            auto temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 1] + words[i + 1];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 2] + words[i + 2];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
+            
+            S1 = std::rotr(e,6) xor std::rotr(e,11) xor std::rotr(e,25);
+            ch = (e bitand f) xor ((compl e) bitand g);
+            temp1 = h + S1 + ch + k[i + 3] + words[i + 3];
+            S0 = std::rotr(a,2) xor std::rotr(a,13) xor std::rotr(a,22);
+            maj = (a bitand b) xor (a bitand c) xor (b bitand c);
+            temp2 = S0 + maj;
+            h = g; g = f; f = e; e = d + temp1; d = c; c = b; b = a; a = temp1 + temp2;
         }
 
         m_message_digest[0] += a;
