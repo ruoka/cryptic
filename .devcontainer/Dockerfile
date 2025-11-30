@@ -1,22 +1,20 @@
-# syntax=docker/dockerfile:1.7
-FROM debian:stable-slim AS build
+FROM debian:bookworm-slim
 
-# Install Clang 20 + libc++ + tools
-# Separate repo setup from package install for better layer caching
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates gnupg wget && \
-    wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-20 main" \
-        > /etc/apt/sources.list.d/llvm20.list && \
+RUN set -ex && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends wget gnupg ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
-    apt-get install -y --no-install-recommends git clang-20 libc++-20-dev libc++abi-20-dev lld-20 && \
+RUN set -ex && \
+    wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/apt-llvm.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/apt-llvm.gpg] https://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-20 main" > /etc/apt/sources.list.d/apt.llvm.org.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends git cmake make clang-20 lldb-20 lld-20 libc++-20-dev libc++abi-20-dev libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
-ENV CC=clang-20 \
-    CXX=clang++-20 \
-    LDFLAGS="-Wl,--push-state,--no-as-needed -lc++ -lc++abi -lc++experimental -Wl,--pop-state -pthread -ldl"
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 && \
+    update-alternatives --install /usr/bin/lld lld /usr/bin/lld-20 100
 
 # https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
 ARG USERNAME=vscode
@@ -41,17 +39,3 @@ RUN existing_group="$(getent group "$USER_GID" | cut -d: -f1 || true)" && \
 
 # [Optional] Set the default user. Omit if you want to keep the default as root.
 USER $USERNAME
-
-# Precompile std module for C++23
-RUN mkdir -p ~/clang-modules-cache && \
-    if [ -f /usr/lib/llvm-20/include/c++/v1/std.cppm ]; then \
-        clang++-20 -std=c++23 -stdlib=libc++ --precompile \
-            /usr/lib/llvm-20/include/c++/v1/std.cppm \
-            -o ~/clang-modules-cache/std.pcm; \
-    elif [ -f /usr/include/c++/v1/std.cppm ]; then \
-        clang++-20 -std=c++23 -stdlib=libc++ --precompile \
-            /usr/include/c++/v1/std.cppm \
-            -o ~/clang-modules-cache/std.pcm; \
-    else \
-        echo "Warning: std.cppm not found, skipping module precompilation"; \
-    fi
