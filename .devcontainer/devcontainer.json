@@ -14,11 +14,17 @@
 
 	// Configure tool-specific properties.
 	"customizations": {
+		"vscode": {
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh"
+			},
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.makefile-tools"
+			]
+		},
 		"codespaces": {
 			"repositories": {
-				"ruoka/std": {
-					"permissions": "write-all"
-				},
 				"ruoka/net": {
 					"permissions": "write-all"
 				},
@@ -31,6 +37,6 @@
 			}
 		}
 	}
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-nonroot.
 	// "remoteUser": "root"
 }
