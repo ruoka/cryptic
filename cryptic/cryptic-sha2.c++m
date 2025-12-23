@@ -151,7 +151,6 @@ private:
     template<std::size_t... Is>
     void hexadecimal_impl(std::string& result, std::index_sequence<Is...>) const
     {
-        constexpr const char hex_chars[] = "0123456789abcdef";
         ((void)([&]() {
             const auto word = m_message_digest[Is];
             result.push_back(hex_chars[(word >> 28) bitand 0xFu]);
@@ -385,6 +384,8 @@ private:
     	output[1] = static_cast<std::byte>(length >> 48);
     	output[0] = static_cast<std::byte>(length >> 56);
     }
+
+    static constexpr const char hex_chars[] = "0123456789abcdef";
 
     static constexpr std::array<std::uint32_t,64> k =
     {
