@@ -65,10 +65,19 @@ jobs:
         run: ./tools/CB.sh debug test
 
       - name: Build benchmark (release)
-        run: ./tools/CB.sh release build
+        # The benchmark lives under tests/, so make sure test targets are built in release mode.
+        # --build-tests builds test targets but doesn't run them.
+        run: ./tools/CB.sh release build --build-tests
 
       - name: Run benchmark (release, timed)
         run: |
           set -euo pipefail
           test -x ./build-linux-release/bin/benchmark
-          timeout 120s ./build-linux-release/bin/benchmark
+          # Ensure LLVM libc++ runtime is discoverable at runtime (Ubuntu runners don't always have it on the default loader path).
+          export LD_LIBRARY_PATH="/usr/lib/llvm-20/lib:${LD_LIBRARY_PATH:-}"
+          timeout 120s ./build-linux-release/bin/benchmark || {
+            echo "benchmark failed; diagnostics:"
+            ls -la ./build-linux-release/bin || true
+            ldd ./build-linux-release/bin/benchmark || true
+            exit 1
+          }
