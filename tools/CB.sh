@@ -1,13 +1,53 @@
 #!/usr/bin/env bash
-# tools/CB.sh — C++ Builder bootstrap for cryptic project
-# Works perfectly with your /usr/local/llvm setup
+# deps/cryptic/tools/CB.sh — C++ Builder bootstrap for cryptic submodule
+# - Prefers a sibling tester (e.g. when cryptic is used inside a larger repo with deps/tester)
+# - Falls back to local deps/tester (for standalone cryptic repo)
+# - Optionally clones tester from GitHub if missing (export CB_FETCH_DEPS=1)
 
 set -e
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$TOOLS_DIR/.." && pwd)"
-SRC="$PROJECT_ROOT/deps/tester/tools/cb.c++"
 BIN="$TOOLS_DIR/cb"
+
+# Default behavior:
+# - On normal dev machines: run all tests by default.
+# - In Cursor sandbox/CI-like environments: disable network tests unless user explicitly overrides.
+if [[ -n "${CURSOR_SANDBOX:-}" && -z "${NET_DISABLE_NETWORK_TESTS+x}" ]]; then
+  export NET_DISABLE_NETWORK_TESTS=1
+fi
+
+# Resolve tester root:
+# 1) sibling deps/tester (common when PROJECT_ROOT is .../deps/cryptic)
+# 2) local deps/tester (standalone cryptic repo)
+TESTER_ROOT=""
+if [[ -d "$PROJECT_ROOT/../tester/tools" ]]; then
+  TESTER_ROOT="$(cd "$PROJECT_ROOT/../tester" && pwd)"
+elif [[ -d "$PROJECT_ROOT/deps/tester/tools" ]]; then
+  TESTER_ROOT="$(cd "$PROJECT_ROOT/deps/tester" && pwd)"
+fi
+
+if [[ -z "$TESTER_ROOT" ]]; then
+  if [[ "${CB_FETCH_DEPS:-0}" == "1" ]]; then
+    mkdir -p "$PROJECT_ROOT/deps"
+    echo "tester dependency missing; cloning into '$PROJECT_ROOT/deps/tester'..."
+    git clone --depth 1 "https://github.com/ruoka/tester.git" "$PROJECT_ROOT/deps/tester"
+    TESTER_ROOT="$(cd "$PROJECT_ROOT/deps/tester" && pwd)"
+  else
+    echo "ERROR: tester dependency not found."
+    echo "Looked for:"
+    echo "  - $PROJECT_ROOT/../tester"
+    echo "  - $PROJECT_ROOT/deps/tester"
+    echo
+    echo "Fix by initializing submodules or cloning tester:"
+    echo "  git submodule update --init --recursive"
+    echo "or rerun with:"
+    echo "  CB_FETCH_DEPS=1 $0 $*"
+    exit 1
+  fi
+fi
+
+SRC="$TESTER_ROOT/tools/cb.c++"
 
 # Detect OS and set compiler/LLVM paths
 UNAME_OUT="$(uname -s)"
@@ -93,11 +133,19 @@ if [[ ! -f "$STD_CPPM" ]]; then
 fi
 
 # Build include flags and link flags
-INCLUDE_FLAGS=()
+INCLUDE_FLAGS=(
+  -I "$PROJECT_ROOT/cryptic"
+)
+
+# tester module include dir
+if [[ -d "$TESTER_ROOT/tester" ]]; then
+  INCLUDE_FLAGS+=(-I "$TESTER_ROOT/tester")
+fi
+
 LINK_FLAGS_STR="-lcrypto"
 if [[ "$UNAME_OUT" == "Darwin" ]]; then
-    INCLUDE_FLAGS=(-I "/opt/homebrew/include")
     LINK_FLAGS_STR="-L/opt/homebrew/lib $LINK_FLAGS_STR"
+    INCLUDE_FLAGS+=(-I "/opt/homebrew/include")
 fi
 
 # Run it with resolved std.cppm path and include flags
