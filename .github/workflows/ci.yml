@@ -63,3 +63,12 @@ jobs:
 
       - name: Run tests
         run: ./tools/CB.sh debug test
+
+      - name: Build benchmark (release)
+        run: ./tools/CB.sh release build
+
+      - name: Run benchmark (release, timed)
+        run: |
+          set -euo pipefail
+          test -x ./build-linux-release/bin/benchmark
+          timeout 120s ./build-linux-release/bin/benchmark
