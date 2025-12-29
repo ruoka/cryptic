@@ -14,7 +14,7 @@ auto register_tests()
     using tester::basic::test_case;
     using namespace tester::assertions;
 
-    test_case("CrypticBase64::ToCharacterSet") = [] {
+    test_case("CrypticBase64::ToCharacterSet, [cryptic]") = [] {
         require_eq('A', cryptic::base64::to_character_set(std::byte{0}));
         require_eq('B', cryptic::base64::to_character_set(std::byte{1}));
         require_eq('a', cryptic::base64::to_character_set(std::byte{26}));
@@ -25,7 +25,7 @@ auto register_tests()
         require_eq('=', cryptic::base64::to_character_set(std::byte{64}));
     };
 
-    test_case("CrypticBase64::Encode") = [] {
+    test_case("CrypticBase64::Encode, [cryptic]") = [] {
         require_eq(""s, cryptic::base64::encode(""s));
         require_eq("TQ=="s, cryptic::base64::encode("M"s));
         require_eq("TWE="s, cryptic::base64::encode("Ma"s));
@@ -38,7 +38,7 @@ auto register_tests()
         require_eq("c3VyZS4="s, cryptic::base64::encode("sure."s));
     };
 
-    test_case("CrypticBase64::ToIndex") = [] {
+    test_case("CrypticBase64::ToIndex, [cryptic]") = [] {
         require_eq(0, cryptic::base64::to_index('A'));
         require_eq(1, cryptic::base64::to_index('B'));
         require_eq(26, cryptic::base64::to_index('a'));
@@ -49,7 +49,7 @@ auto register_tests()
         require_eq(64, cryptic::base64::to_index('='));
     };
 
-    test_case("CrypticBase64::Decode") = [] {
+    test_case("CrypticBase64::Decode, [cryptic]") = [] {
         require_eq(""s, cryptic::base64::decode(""));
         require_eq("M"s, cryptic::base64::decode("TQ=="));
         require_eq("Ma"s, cryptic::base64::decode("TWE="));
