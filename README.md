@@ -95,8 +95,8 @@ The benchmark tests three message sizes (small: 43 bytes, medium: 782 bytes, lar
 ### Optimizations
 
 Recent optimizations include:
-- **Loop unrolling**: Extensive unrolling of word loading, expansion, and compression loops
 - **Compiler hints**: Hot function attributes and always-inline hints for critical paths
 - **Small message optimization**: Special-casing for single-chunk messages to avoid loop overhead
 - **Memory access patterns**: Prefetching, restrict pointers, and cache-aligned data structures
 - **Template-based unrolling**: Compile-time unrolling of hexadecimal encoding loops
+- **Release flags**: Optional `-funroll-loops` for transform hot paths without manual loop duplication
