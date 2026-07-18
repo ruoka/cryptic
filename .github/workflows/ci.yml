@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ master ]
 
+# Only cancel superseded PR runs. Never cancel master mid-flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -20,34 +25,8 @@ jobs:
           fetch-depth: 1
           submodules: recursive
 
-      - name: Cache LLVM 21 + libc++
-        id: cache-llvm
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/lib/llvm-21
-            /usr/bin/clang-21
-            /usr/bin/clang++-21
-            /usr/bin/lld-21
-            /usr/bin/lldb-21
-          key: llvm-21-ubuntu-${{ runner.arch }}-2025-v1
-          restore-keys: |
-            llvm-21-ubuntu-${{ runner.arch }}-
-            llvm-21-ubuntu-
-            llvm-21-
-
-      - name: Install LLVM toolchain
-        if: steps.cache-llvm.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y wget gnupg ca-certificates lsb-release software-properties-common
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo gpg --dearmor -o /usr/share/keyrings/apt-llvm.gpg
-          echo "deb [signed-by=/usr/share/keyrings/apt-llvm.gpg] https://apt.llvm.org/$(lsb_release -cs)/ llvm-toolchain-$(lsb_release -cs)-21 main" | sudo tee /etc/apt/sources.list.d/apt-llvm.org.list > /dev/null
-          sudo apt-get update -y
-          sudo apt-get install -y libc++-21-dev libc++abi-21-dev clang-21 lldb-21 lld-21 libssl-dev
-          sudo update-alternatives --install /usr/bin/clang   clang   /usr/bin/clang-21   100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100
-          sudo update-alternatives --install /usr/bin/lld     lld     /usr/bin/lld-21     100
+      - name: Setup LLVM (shared)
+        uses: ./.github/actions/setup-llvm
 
       - name: Verify std.cppm location
         run: |
