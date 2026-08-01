@@ -1,6 +1,17 @@
 # cryptic
 SHA1, SHA2 and BASE64 algorithms implemented as C++23 modules.
 
+## Requirements
+
+- **Clang 21+** with libc++ modules (`std.cppm`)
+- Nested [tester](https://github.com/ruoka/tester) submodule (pin must match sibling libraries — see [Versioning](#versioning--releases))
+
+## Versioning & Releases
+
+**Current release: [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0)** — first supported modules-era SemVer tag. Untagged header history is treated as v1.
+
+See [`docs/release-policy.md`](docs/release-policy.md) for the public surface, SemVer rules, and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
+
 ## Building
 
 The project uses [tester](https://github.com/ruoka/tester) for testing and C++ Builder (CB.sh) for building. To build and run tests:
