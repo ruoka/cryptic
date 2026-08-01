@@ -41,7 +41,10 @@ jobs:
         run: ./tools/CB.sh debug build
 
       - name: Run tests
-        run: ./tools/CB.sh debug test
+        # Prefer JSONL like the rest of the ecosystem so summary.passed is authoritative.
+        # Unfiltered still pulls nested deps/tester [self] cases; --jsonl keeps their
+        # observer_instance live-sink assumptions aligned with tester's own CI.
+        run: ./tools/CB.sh debug test --jsonl=failures
 
       - name: Build benchmark (release)
         # The benchmark lives under tests/, so make sure test targets are built in release mode.
