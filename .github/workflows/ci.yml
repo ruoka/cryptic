@@ -40,16 +40,60 @@ jobs:
       - name: Build project
         run: ./tools/CB.sh debug build
 
+      # Prefer JSONL like the rest of the ecosystem so summary.passed is authoritative.
+      # Unfiltered still pulls nested deps/tester [self] cases; --jsonl keeps their
+      # observer_instance live-sink assumptions aligned with tester's own CI.
+      # --jobs forwards to test_runner for parallel top-level cases; --junit=
+      # writes an additive xUnit report beside JSONL (see ruoka/tester CI).
       - name: Run tests
-        # Prefer JSONL like the rest of the ecosystem so summary.passed is authoritative.
-        # Unfiltered still pulls nested deps/tester [self] cases; --jsonl keeps their
-        # observer_instance live-sink assumptions aligned with tester's own CI.
-        # --jobs forwards to test_runner for parallel top-level cases.
         run: |
           set -euo pipefail
           jobs="$(nproc)"
           echo "Running tests with --jobs=${jobs}"
-          ./tools/CB.sh debug test --jsonl=failures --jobs="${jobs}"
+          ./tools/CB.sh debug test --jsonl=failures --jobs="${jobs}" \
+            --junit=test_results_debug.xml \
+            > test_results_debug.jsonl
+          passed=$(jq -rs '[.[] | select(.type=="summary" or .type=="run_end")] | last | .passed' test_results_debug.jsonl)
+          if [ "$passed" != "true" ]; then
+            echo "Tests failed (summary.passed=$passed)"
+            tail -20 test_results_debug.jsonl
+            exit 1
+          fi
+          echo "✓ Tests passed (jobs=${jobs})"
+
+      - name: Validate JSONL output
+        run: |
+          set -euo pipefail
+          f=test_results_debug.jsonl
+          if [ ! -f "$f" ]; then
+            echo "ERROR: JSONL output file not found!"
+            exit 1
+          fi
+          echo "JSONL lines ($f): $(wc -l < "$f")"
+          if ! tail -1 "$f" | jq -e '.type == "eof"' >/dev/null; then
+            echo "✗ EOF marker missing in $f — the stream was truncated"
+            tail -5 "$f"
+            exit 1
+          fi
+          echo "✓ EOF marker found"
+
+      # show=all writes the test table into the job Summary on green runs too
+      # (default show=fail leaves only a tiny SVG badge when everything passes).
+      - name: Publish JUnit test summary
+        uses: test-summary/action@v2
+        if: always()
+        with:
+          show: all
+          paths: test_results_debug.xml
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-debug
+          path: |
+            test_results_debug.jsonl
+            test_results_debug.xml
 
       - name: Build benchmark (release)
         # The benchmark lives under tests/, so make sure test targets are built in release mode.
