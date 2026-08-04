@@ -40,19 +40,18 @@ jobs:
       - name: Build project
         run: ./tools/CB.sh debug build
 
-      # Prefer JSONL like the rest of the ecosystem so summary.passed is authoritative.
-      # Unfiltered still pulls nested deps/tester [self] cases; --jsonl keeps their
-      # observer_instance live-sink assumptions aligned with tester's own CI.
-      # --jobs forwards to test_runner for parallel top-level cases; --junit=
-      # writes an additive xUnit report beside JSONL (see ruoka/tester CI).
+      # Scope to cryptic tests only — unfiltered runs pull nested deps/tester
+      # [self] JUnit probes that write temp reports and fail outside tester's
+      # own tree. --jobs forwards to test_runner; --junit= writes an additive
+      # xUnit report beside JSONL (see ruoka/tester CI).
       - name: Run tests
         run: |
           set -euo pipefail
           jobs="$(nproc)"
-          echo "Running tests with --jobs=${jobs}"
+          echo "Running [cryptic] tests with --jobs=${jobs}"
           ./tools/CB.sh debug test --jsonl=failures --jobs="${jobs}" \
             --junit=test_results_debug.xml \
-            > test_results_debug.jsonl
+            --tags='\[cryptic\]' > test_results_debug.jsonl
           passed=$(jq -rs '[.[] | select(.type=="summary" or .type=="run_end")] | last | .passed' test_results_debug.jsonl)
           if [ "$passed" != "true" ]; then
             echo "Tests failed (summary.passed=$passed)"
