@@ -70,12 +70,10 @@ public:
             update(std::span<const std::byte>{data_ptr + offset, chunk_size});
             offset += chunk_size;
         }
-        
-        // Finalize remaining bytes
-        if (offset < total_size)
-        {
-            finalize(std::span<const std::byte>{data_ptr + offset, total_size - offset});
-        }
+
+        // The tail may be empty. A multiple of the block size still needs a
+        // padding block for the 0x80 marker and the bit length.
+        finalize(std::span<const std::byte>{data_ptr + offset, total_size - offset});
     }
 
     void encode(std::span<std::byte,20> other) const noexcept

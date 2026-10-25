@@ -124,10 +124,10 @@ auto register_tests()
         require_eq(cryptic::sha256::hexadecimal(str), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"s);
     };
 
-    test_case("CrypticSHA256::LongMessage") = [] {
-        // One million 'a's - known test vector
+    test_case("CrypticSHA256::LongMessage, [cryptic]") = [] {
+        // NIST FIPS 180-4: one million 'a's
         std::string million(1'000'000, 'a');
-        require_eq(cryptic::sha256::hexadecimal(million), "7ada70eb68068a222f2f02c77f9376c270501a1fd25beac6280325fc2950ab39"s);
+        require_eq(cryptic::sha256::hexadecimal(million), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"s);
     };
 
     test_case("CrypticSHA256::Comparison") = [] {
