@@ -41,24 +41,22 @@ public:
         m_message_digest{H0,H1,H2,H3,H4,H5,H6,H7}
     {}
 
-    constexpr sha2(auto message) noexcept : sha2()
+    template<typename Message>
+        requires (not std::derived_from<std::remove_cvref_t<Message>, sha2>)
+    constexpr sha2(Message&& message) noexcept : sha2()
     {
         hash(message);
     }
 
-    sha2(const sha2&) = default;
-
-    sha2(sha2&&) = default;
-
     __attribute__((hot))
-    constexpr void hash(auto message) noexcept
+    constexpr void hash(auto&& message) noexcept
     {
         hash_message<false>(message);
     }
 
     template<bool ForceScalar>
     __attribute__((hot))
-    constexpr void hash_message(auto message) noexcept
+    constexpr void hash_message(auto&& message) noexcept
     {
         reset();
 
@@ -116,7 +114,7 @@ public:
         return base64::encode(buffer);
     }
 
-    static std::string base64(auto message)
+    static std::string base64(auto&& message)
     {
         const auto hash = sha2{message};
         return hash.base64();
@@ -130,7 +128,7 @@ public:
         return result;
     }
 
-    static constexpr std::string hexadecimal(auto message)
+    static constexpr std::string hexadecimal(auto&& message)
     {
         const auto hash = sha2{message};
         return hash.hexadecimal();
@@ -141,7 +139,7 @@ public:
         return 4 * N;
     }
 
-    bool operator < (const sha2& other) const noexcept
+    constexpr bool operator < (const sha2& other) const noexcept
     {
     	for(auto i = 0uz; i < N; ++i)
             if(m_message_digest[i] != other.m_message_digest[i])

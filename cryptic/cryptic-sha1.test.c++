@@ -10,17 +10,29 @@ using namespace std::string_literals;
 
 namespace cryptic::sha1_test {
 
+struct counted_message
+{
+    std::string text;
+    int* copies;
+    counted_message(std::string_view t, int& counter) : text{t}, copies{&counter} {}
+    counted_message(const counted_message& other) : text{other.text}, copies{other.copies} { ++*copies; }
+    auto begin() const { return text.begin(); }
+    auto end() const { return text.end(); }
+    auto data() const { return text.data(); }
+    auto size() const { return text.size(); }
+};
+
 auto register_tests()
 {
     using tester::basic::test_case;
     using namespace tester::assertions;
 
-    test_case("CrypticSHA1::Size") = [] {
+    test_case("CrypticSHA1::Size, [cryptic]") = [] {
         auto hash = cryptic::sha1{};
         require_eq(20ul, hash.size());
     };
 
-    test_case("CrypticSHA1::Base64") = [] {
+    test_case("CrypticSHA1::Base64, [cryptic]") = [] {
         // Standard test vectors
         require_eq(cryptic::sha1::base64(""), "2jmj7l5rSw0yVb/vlWAYkK/YBwk="s);
         require_eq(cryptic::sha1::base64("a"), "hvfkN/qlp/zhXR3cuerq6jd2Z7g="s);
@@ -30,7 +42,7 @@ auto register_tests()
         require_eq(cryptic::sha1::base64("The quick brown fox jumps over the lazy cog"), "3p8sf9JeGzr60+haC9F9mxANtLM="s);
     };
 
-    test_case("CrypticSHA1::Hexadecimal") = [] {
+    test_case("CrypticSHA1::Hexadecimal, [cryptic]") = [] {
         // Standard test vectors
         require_eq(cryptic::sha1::hexadecimal(""), "da39a3ee5e6b4b0d3255bfef95601890afd80709"s);
         require_eq(cryptic::sha1::hexadecimal("a"), "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8"s);
@@ -40,7 +52,7 @@ auto register_tests()
         require_eq(cryptic::sha1::hexadecimal("The quick brown fox jumps over the lazy cog"), "de9f2c7fd25e1b3afad3e85a0bd17d9b100db4b3"s);
     };
 
-    test_case("CrypticSHA1::Reset") = [] {
+    test_case("CrypticSHA1::Reset, [cryptic]") = [] {
         auto sha1 = cryptic::sha1{};
         sha1.hash(""s);
 
@@ -64,14 +76,14 @@ auto register_tests()
         require_eq(sha1.hexadecimal(), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"s);
     };
 
-    test_case("CrypticSHA1::Hash") = [] {
+    test_case("CrypticSHA1::Hash, [cryptic]") = [] {
         auto test1 = cryptic::sha1{}, test2 = cryptic::sha1{};
         test1.hash("The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog."s);
         require_neq(test1.base64(), test2.base64());
         require_neq(test1.hexadecimal(), test2.hexadecimal());
     };
 
-    test_case("CrypticSHA1::InputTypes") = [] {
+    test_case("CrypticSHA1::InputTypes, [cryptic]") = [] {
         // Test const char*
         const char* cstr = "abc";
         require_eq(cryptic::sha1::hexadecimal(cstr), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
@@ -88,6 +100,10 @@ auto register_tests()
         auto test_str = "abc"s;
         auto bytes = std::as_bytes(std::span{test_str});
         require_eq(cryptic::sha1::hexadecimal(bytes), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+
+        // Test byte array
+        const std::byte array[] = {std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+        require_eq(cryptic::sha1::hexadecimal(array), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
     };
 
     test_case("CrypticSHA1::LongMessage, [cryptic]") = [] {
@@ -121,7 +137,7 @@ auto register_tests()
         check(fill(65536));
     };
 
-    test_case("CrypticSHA1::Comparison") = [] {
+    test_case("CrypticSHA1::Comparison, [cryptic]") = [] {
         auto hash1 = cryptic::sha1{"abc"s};
         auto hash2 = cryptic::sha1{"def"s};
         auto hash3 = cryptic::sha1{"abc"s};
@@ -129,6 +145,40 @@ auto register_tests()
         require_neq(hash1.base64(), hash2.base64());
         require_eq(hash1.base64(), hash3.base64());
         require_neq(hash1 < hash2, hash2 < hash1); // One must be true
+    };
+
+    test_case("CrypticSHA1::EqualDigests, [cryptic]") = [] {
+        const auto a = cryptic::sha1{"abc"s};
+        const auto b = cryptic::sha1{"abc"s};
+        require_false(a < b);
+        require_false(b < a);
+
+        auto digests = std::set<cryptic::sha1>{};
+        require_true(digests.insert(a).second);
+        require_false(digests.insert(b).second);
+        require_eq(1uz, digests.size());
+    };
+
+    test_case("CrypticSHA1::CopyAndAssign, [cryptic]") = [] {
+        auto original = cryptic::sha1{"abc"s};
+        auto copy = original;
+        require_eq(copy.hexadecimal(), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+
+        copy = cryptic::sha1{"The quick brown fox jumps over the lazy dog"s};
+        require_eq(copy.hexadecimal(), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12"s);
+
+        copy = original;
+        require_eq(copy.hexadecimal(), original.hexadecimal());
+    };
+
+    test_case("CrypticSHA1::MessageIsNotCopied, [cryptic]") = [] {
+        auto copies = 0;
+        const auto message = counted_message{"abc", copies};
+        require_eq(cryptic::sha1::hexadecimal(message), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+        require_eq(cryptic::sha1::base64(message), "qZk+NkcGgWq6PiVxeFDCbJzQ2J0="s);
+        auto hash = cryptic::sha1{message};
+        hash.hash(message);
+        require_eq(0, copies);
     };
 
     return 0;
@@ -155,6 +205,17 @@ consteval bool sha1_hashed_at_compile_time()
 }
 
 static_assert(sha1_hashed_at_compile_time());
+
+consteval bool sha1_equal_digests_are_not_less()
+{
+    constexpr auto abc = std::array{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    const auto a = cryptic::sha1{abc};
+    const auto b = cryptic::sha1{abc};
+    return not (a < b) and not (b < a);
+}
+
+static_assert(sha1_equal_digests_are_not_less());
+static_assert(std::is_copy_assignable_v<cryptic::sha1> and std::is_move_assignable_v<cryptic::sha1>);
 
 #if defined(__aarch64__) && defined(__ARM_FEATURE_SHA2) && !defined(CRYPTIC_SCALAR_ONLY)
 static_assert(cryptic::details::sha1_paths::accelerated);
