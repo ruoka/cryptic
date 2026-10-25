@@ -53,7 +53,18 @@ inline constexpr auto to_bytes_span(Message&& message) noexcept
     }
     else
     {
-        return std::as_bytes(std::span{message});
+        auto view = std::span{message};
+        using element = std::remove_cv_t<typename decltype(view)::element_type>;
+        // std::byte is already a byte span. Skipping as_bytes avoids the
+        // reinterpret_cast, so a byte range can be hashed in a constant expression.
+        if constexpr (std::is_same_v<element, std::byte>)
+        {
+            return std::span<const std::byte>{view.data(), view.size()};
+        }
+        else
+        {
+            return std::as_bytes(view);
+        }
     }
 }
 

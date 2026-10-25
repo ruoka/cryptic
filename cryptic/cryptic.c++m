@@ -16,6 +16,11 @@ export namespace cryptic
     using cryptic::sha256;
 }
 
+export namespace cryptic::details
+{
+    using cryptic::details::sha2_paths;
+}
+
 // Re-export base64 namespace - extend the exported namespace from the partition
 export namespace cryptic::base64 {
     using cryptic::base64::to_character_set;

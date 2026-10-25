@@ -130,6 +130,36 @@ auto register_tests()
         require_eq(cryptic::sha256::hexadecimal(million), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"s);
     };
 
+    test_case("CrypticSHA2::ScalarMatchesNative, [cryptic]") = [] {
+        auto fill = [](std::size_t n) {
+            auto bytes = std::vector<std::byte>(n);
+            auto state = 0xA5A5A5A5u;
+            for (auto& byte : bytes)
+            {
+                state = state * 1664525u + 1013904223u;
+                byte = std::byte{static_cast<unsigned char>(state >> 24)};
+            }
+            return bytes;
+        };
+
+        auto check = [](std::span<const std::byte> message) {
+            const auto scalar256 = cryptic::details::sha2_paths::hexadecimal<cryptic::sha256, true>(message);
+            const auto native256 = cryptic::details::sha2_paths::hexadecimal<cryptic::sha256, false>(message);
+            require_eq(scalar256, native256);
+            require_eq(cryptic::sha256::hexadecimal(message), native256);
+
+            const auto scalar224 = cryptic::details::sha2_paths::hexadecimal<cryptic::sha224, true>(message);
+            const auto native224 = cryptic::details::sha2_paths::hexadecimal<cryptic::sha224, false>(message);
+            require_eq(scalar224, native224);
+            require_eq(cryptic::sha224::hexadecimal(message), native224);
+        };
+
+        for (auto n = 0uz; n <= 300uz; ++n)
+            check(fill(n));
+        check(fill(1024));
+        check(fill(65536));
+    };
+
     test_case("CrypticSHA256::Comparison") = [] {
         auto hash1 = cryptic::sha256{"abc"s};
         auto hash2 = cryptic::sha256{"def"s};
@@ -143,5 +173,31 @@ auto register_tests()
 }
 
 } // namespace cryptic::sha2_test
+
+consteval bool sha256_hashed_at_compile_time()
+{
+    constexpr auto abc = std::array{
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'}
+    };
+    auto hash = cryptic::sha256{};
+    hash.hash(abc);
+    if (hash.hexadecimal() != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        return false;
+
+    auto longer = std::array<std::byte, 70>{};
+    for (auto i = 0uz; i < longer.size(); ++i)
+        longer[i] = std::byte{static_cast<unsigned char>(i)};
+    auto wide = cryptic::sha256{};
+    wide.hash(longer);
+    return wide.hexadecimal() == "5767d69a906d4860db9079eb7e90ab4a543e5cb032fce846554aef6ceb600e1d";
+}
+
+static_assert(sha256_hashed_at_compile_time());
+
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SHA2) && !defined(CRYPTIC_SCALAR_ONLY)
+static_assert(cryptic::details::sha2_paths::accelerated);
+#else
+static_assert(!cryptic::details::sha2_paths::accelerated);
+#endif
 
 const auto _ = cryptic::sha2_test::register_tests();
