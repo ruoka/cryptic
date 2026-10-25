@@ -81,7 +81,7 @@ export namespace cryptic::base64 {
         return encoded;
     }
 
-    template<details::byte_source Source>
+    template<details::byte_message Source>
     constexpr std::string encode(Source&& source)
     {
         return encode(details::to_bytes_span(source));

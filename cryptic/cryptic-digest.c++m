@@ -1,0 +1,103 @@
+// Copyright (c) 2025-2026 Kaius Ruokonen. All rights reserved.
+// SPDX-License-Identifier: MIT
+// See the LICENSE file in the project root for full license text.
+
+export module cryptic:digest;
+import std;
+import :base64;
+
+export namespace cryptic {
+
+// The result of a hash: N bytes in the order the algorithm defines.
+template<std::size_t N>
+class digest
+{
+public:
+
+    // All bytes zero.
+    constexpr digest() noexcept = default;
+
+    constexpr explicit digest(std::span<const std::byte, N> source) noexcept
+    {
+        std::ranges::copy(source, m_bytes.begin());
+    }
+
+    static constexpr std::size_t size() noexcept
+    {
+        return N;
+    }
+
+    constexpr std::span<const std::byte, N> bytes() const noexcept
+    {
+        return m_bytes;
+    }
+
+    constexpr const std::byte* data() const noexcept
+    {
+        return m_bytes.data();
+    }
+
+    constexpr const std::byte* begin() const noexcept
+    {
+        return m_bytes.data();
+    }
+
+    constexpr const std::byte* end() const noexcept
+    {
+        return m_bytes.data() + N;
+    }
+
+    // Lower-case, two characters per byte.
+    constexpr std::string hexadecimal() const
+    {
+        constexpr auto digits = std::string_view{"0123456789abcdef"};
+        auto result = std::string(2 * N, '0');
+        for(auto i = 0uz; i < N; ++i)
+        {
+            const auto octet = std::to_integer<std::size_t>(m_bytes[i]);
+            result[2 * i + 0] = digits[octet >> 4];
+            result[2 * i + 1] = digits[octet bitand 0xFu];
+        }
+        return result;
+    }
+
+    // Padded, standard alphabet.
+    constexpr std::string base64() const
+    {
+        return cryptic::base64::encode(bytes());
+    }
+
+    // Compares every byte, without stopping at the first difference.
+    friend constexpr bool operator == (const digest& lhs, const digest& rhs) noexcept
+    {
+        auto difference = std::byte{0};
+        for(auto i = 0uz; i < N; ++i)
+            difference |= lhs.m_bytes[i] xor rhs.m_bytes[i];
+        return difference == std::byte{0};
+    }
+
+    friend constexpr std::strong_ordering operator <=> (const digest& lhs, const digest& rhs) noexcept
+    {
+        return std::lexicographical_compare_three_way(lhs.m_bytes.begin(), lhs.m_bytes.end(),
+                                                      rhs.m_bytes.begin(), rhs.m_bytes.end());
+    }
+
+private:
+
+    std::array<std::byte, N> m_bytes = {};
+};
+
+} // namespace cryptic
+
+// The bytes of a digest are uniformly distributed, so the leading ones serve as the hash.
+template<std::size_t N>
+struct std::hash<cryptic::digest<N>>
+{
+    constexpr std::size_t operator()(const cryptic::digest<N>& digest) const noexcept
+    {
+        auto value = std::size_t{0};
+        for(const auto octet : digest.bytes().template first<std::min(N, sizeof value)>())
+            value = value << 8 bitor std::to_integer<std::size_t>(octet);
+        return value;
+    }
+};

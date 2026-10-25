@@ -9,6 +9,9 @@ using namespace std::literals;
 
 constexpr auto loops = 100'000ul;
 
+// Each digest ends up here, so the optimizer can't drop a hash nobody reads.
+static volatile std::byte sink;
+
 // Realistic test data: varied content that's less compressible
 static auto test_case_medium()
 {
@@ -52,9 +55,7 @@ static auto cryptic_sha1_test(const TestCase& test)
     const auto t1 = std::chrono::steady_clock::now();
     for(auto i = loops; i; --i)
     {
-        auto sha1 = cryptic::sha1{};
-        sha1.hash(test);
-        // Don't encode - we're only benchmarking hash computation
+        sink = cryptic::sha1::hash(test).bytes()[0];
     }
     const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
@@ -67,9 +68,7 @@ static auto cryptic_sha256_test(const TestCase& test)
     const auto t1 = std::chrono::steady_clock::now();
     for(auto i = loops; i; --i)
     {
-        auto sha256 = cryptic::sha256{};
-        sha256.hash(test);
-        // Don't encode - we're only benchmarking hash computation
+        sink = cryptic::sha256::hash(test).bytes()[0];
     }
     const auto t2 = std::chrono::steady_clock::now();
     const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);

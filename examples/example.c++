@@ -10,9 +10,9 @@ int main()
 {
     std::cout << cryptic::sha1::base64("The quick brown fox jumps over the lazy dog"s) << std::endl;
 
-    auto hash = cryptic::sha1{"The quick brown fox jumps over the lazy cog"s};
-    std::cout << hash.hexadecimal() << std::endl;
-    std::cout << hash.base64() << std::endl;
+    const auto digest = cryptic::sha1::hash("The quick brown fox jumps over the lazy cog"s);
+    std::cout << digest.hexadecimal() << std::endl;
+    std::cout << digest.base64() << std::endl;
 
     auto file = std::ifstream{"./src/example.cpp"s};
     auto test2 = ""s;

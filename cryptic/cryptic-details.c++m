@@ -43,6 +43,11 @@ inline constexpr void ensures(bool condition,
     }
 }
 
+// One byte with no padding bits, so a message reads the same on every platform.
+template<typename T>
+concept byte_like = std::same_as<T, char> or std::same_as<T, signed char> or std::same_as<T, unsigned char>
+                 or std::same_as<T, char8_t> or std::same_as<T, std::byte>;
+
 template<typename T>
 concept text_character = std::same_as<std::remove_const_t<T>, char> or std::same_as<std::remove_const_t<T>, char8_t>;
 
@@ -51,26 +56,30 @@ concept text_character = std::same_as<std::remove_const_t<T>, char> or std::same
 template<typename Message>
 concept c_string = (std::is_pointer_v<std::remove_cvref_t<Message>>
                     and text_character<std::remove_pointer_t<std::remove_cvref_t<Message>>>)
-                or (std::is_array_v<std::remove_cvref_t<Message>>
-                    and text_character<std::remove_extent_t<std::remove_cvref_t<Message>>>);
+                or (std::is_array_v<std::remove_reference_t<Message>>
+                    and text_character<std::remove_extent_t<std::remove_reference_t<Message>>>);
 
-// A message the hashes and base64::encode accept: a C string, or anything std::span can view.
+// A message the hashes and base64::encode accept: a C string, or a
+// contiguous range of byte-like elements.
 template<typename Message>
-concept byte_source = c_string<Message> or requires(Message& message) { std::span{message}; };
+concept byte_message = c_string<Message>
+                    or (std::ranges::contiguous_range<Message> and std::ranges::sized_range<Message>
+                        and byte_like<std::remove_const_t<std::remove_reference_t<std::ranges::range_reference_t<Message>>>>);
 
-template<byte_source Message>
-inline constexpr auto to_bytes_span(Message&& message) noexcept
+template<byte_message Message>
+inline constexpr std::span<const std::byte> to_bytes_span(Message&& message) noexcept
 {
     using message_type = std::remove_cvref_t<Message>;
     if constexpr (c_string<Message> and std::is_array_v<message_type>)
     {
-        using character = std::remove_const_t<std::remove_extent_t<message_type>>;
+        using character = std::remove_cv_t<std::remove_extent_t<message_type>>;
         constexpr auto capacity = std::extent_v<message_type>;
         const auto* nul = std::char_traits<character>::find(message, capacity, character{});
         return std::as_bytes(std::span{message, nul ? static_cast<std::size_t>(nul - message) : capacity});
     }
     else if constexpr (c_string<Message>)
     {
+        expects(message != nullptr);
         return std::as_bytes(std::span{std::basic_string_view{message}});
     }
     else
