@@ -31,6 +31,10 @@ openssl
 *.gcda
 *.gcno
 
+# clangd compilation database and module graph (written by `cb list`)
+compile_commands.json
+graph.json
+
 # Test artifacts
 *.test
 test_runner
