@@ -1,6 +1,6 @@
 # Public interface
 
-This page lists what `import cryptic;` promises under the [release policy](release-policy.md) in v3.0.0, and how to move to it from v2. v3.0.0 is not released yet; the current release is [`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1).
+This page lists what `import cryptic;` promises under the [release policy](release-policy.md) in [`v3.0.0`](https://github.com/ruoka/cryptic/releases/tag/v3.0.0), and how to move to it from v2.
 
 ## Digests
 

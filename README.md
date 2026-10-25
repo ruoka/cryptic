@@ -8,9 +8,9 @@ SHA1, SHA2 and BASE64 algorithms implemented as C++23 modules.
 
 ## Versioning & Releases
 
-**Current release: [`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1)** — same `import cryptic;` surface as v2.0.0. `transform` uses the AArch64 SHA instructions when the compiler supports them, and messages that are an exact multiple of the block are padded. [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0) was the first supported modules-era tag. Untagged header history is treated as v1.
+**Current release: [`v3.0.0`](https://github.com/ruoka/cryptic/releases/tag/v3.0.0)** — a major release. Hashes return `cryptic::digest<N>` values, messages must be byte-like, and `base64::decode` reports errors instead of terminating. [`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1) is the last v2 release, and [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0) was the first supported modules-era tag. Untagged header history is treated as v1.
 
-This tree has the v3.0.0 interface, which isn't tagged yet. See [`docs/interface.md`](docs/interface.md) for that interface and how to migrate from v2, and [`docs/release-policy.md`](docs/release-policy.md) for SemVer rules and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
+See [`docs/interface.md`](docs/interface.md) for the interface and how to migrate from v2, and [`docs/release-policy.md`](docs/release-policy.md) for SemVer rules and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
 
 ## Building
 
@@ -60,7 +60,7 @@ auto test3 = cryptic::base64::encode("Man"s);
 std::cout << test3 << std::endl;
 ```
 
-Examples #4 to #6 use the v3.0.0 interface, which isn't released yet; see [`docs/interface.md`](docs/interface.md#changes-in-v300).
+Examples #4 to #6 need v3.0.0; see [`docs/interface.md`](docs/interface.md#changes-in-v300) for what changed from v2.
 
 Example #4 - Base64 Decode
 ```c++
