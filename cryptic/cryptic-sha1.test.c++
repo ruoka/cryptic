@@ -104,6 +104,15 @@ auto register_tests()
         // Test byte array
         const std::byte array[] = {std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
         require_eq(cryptic::sha1::hexadecimal(array), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+
+        // A char or char8_t array is a C string: read up to its first NUL and never past its end.
+        require_eq(cryptic::sha1::hexadecimal(u8"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+        const char8_t* u8cstr = u8"abc";
+        require_eq(cryptic::sha1::hexadecimal(u8cstr), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+        const char unterminated[] = {'a', 'b', 'c'};
+        require_eq(cryptic::sha1::hexadecimal(unterminated), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+        const char embedded[] = "abc\0def";
+        require_eq(cryptic::sha1::hexadecimal(embedded), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
     };
 
     test_case("CrypticSHA1::LongMessage, [cryptic]") = [] {

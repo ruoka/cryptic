@@ -18,7 +18,7 @@ stream.update(header).update(body);
 const auto digest = stream.finalize();   // std::array<std::byte, 32>
 ```
 
-`message` can be a `std::string`, a `std::string_view`, a string literal or other C string, a span or array of bytes, or any other contiguous range. A C string is read up to its terminating NUL. Any other range is hashed as its object representation. Messages are read in place, never copied, and anything else is rejected at the call.
+`message` can be a `std::string`, a `std::string_view`, a string literal or other C string, a span or array of bytes, or any other contiguous range. A pointer to `char` or `char8_t` is read up to its terminating NUL. So is an array of them, a string literal included, but never past the array's end. Any other range is hashed as its object representation, NULs included. Messages are read in place, never copied, and anything else is rejected at the call.
 
 - `update()` appends to the message. After `hash()` or `finalize()`, it starts a new one.
 - `finalize()` pads the message, keeps the digest and returns it. Calling it again returns the same digest.
@@ -73,6 +73,7 @@ These are unreleased and planned for v2.1.0. Apart from the fixes below, code wr
 - `sha1::operator<` read past the end of its five-word digest whenever the two digests were equal, because the loop used `sizeof` of the array as its element count. Inserting a duplicate into a `std::set<cryptic::sha1>` was enough to trigger it. A `static_assert` now compares equal digests in a constant expression, where an out-of-bounds read is a compile error.
 - `sha224` and `sha256` could be neither copy- nor move-assigned. The user-declared move constructor deleted copy assignment and suppressed move assignment, so `std::sort` rejected a `std::vector<cryptic::sha256>`. `sha1` was not affected.
 - Messages were passed by value through every layer, so `sha256::hexadecimal(text)` copied a `std::string` four times. They are now forwarding references, and the tests check that a message is never copied.
+- A `char` array without a NUL was read past its end, because it decayed to a pointer and was measured up to the first NUL in memory. An array is now read up to its first NUL or its end, whichever comes first.
 - CI runs `--tags='\[cryptic\]'`, but 17 of the 25 tests had no `[cryptic]` tag, so CI ran only 8 of them. Every test is tagged now.
 
 ### Added
@@ -81,6 +82,7 @@ These are unreleased and planned for v2.1.0. Apart from the fixes below, code wr
 - `digest()`, `digest_size`, `block_size`, `==`, `<=>` and `std::hash` for every hash.
 - `base64::try_decode` and `base64::decode_error`.
 - `base64::encode` for string literals, C strings and byte spans, and C arrays of `std::byte` for the hashes. v2.0.1 rejected all of these.
+- `char8_t` strings, `u8"…"` literals and `const char8_t*` included, read like `char` strings.
 - `constexpr` on `base64()`, `encode()` and the comparisons. The byte output no longer depends on the host's byte order.
 - Constrained message parameters. An unsupported argument such as a `std::list<char>` now fails at the call with a `byte_source` error, instead of deep inside the library.
 

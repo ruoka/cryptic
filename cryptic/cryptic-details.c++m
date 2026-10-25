@@ -43,21 +43,35 @@ inline constexpr void ensures(bool condition,
     }
 }
 
+template<typename T>
+concept text_character = std::same_as<std::remove_const_t<T>, char> or std::same_as<std::remove_const_t<T>, char8_t>;
+
+// A pointer to or an array of char or char8_t, read up to the first NUL.
+// An array is never read past its end.
+template<typename Message>
+concept c_string = (std::is_pointer_v<std::remove_cvref_t<Message>>
+                    and text_character<std::remove_pointer_t<std::remove_cvref_t<Message>>>)
+                or (std::is_array_v<std::remove_cvref_t<Message>>
+                    and text_character<std::remove_extent_t<std::remove_cvref_t<Message>>>);
+
 // A message the hashes and base64::encode accept: a C string, or anything std::span can view.
 template<typename Message>
-concept byte_source = std::is_same_v<std::decay_t<Message>, const char*>
-                   or std::is_same_v<std::decay_t<Message>, char*>
-                   or requires(Message& message) { std::span{message}; };
+concept byte_source = c_string<Message> or requires(Message& message) { std::span{message}; };
 
-// Helper to convert message to bytes span, handling const char* properly
 template<byte_source Message>
 inline constexpr auto to_bytes_span(Message&& message) noexcept
 {
-    using message_type = std::decay_t<Message>;
-    if constexpr (std::is_same_v<message_type, const char*> or std::is_same_v<message_type, char*>)
+    using message_type = std::remove_cvref_t<Message>;
+    if constexpr (c_string<Message> and std::is_array_v<message_type>)
     {
-        const std::string_view sv{message};
-        return std::as_bytes(std::span{sv});
+        using character = std::remove_const_t<std::remove_extent_t<message_type>>;
+        constexpr auto capacity = std::extent_v<message_type>;
+        const auto* nul = std::char_traits<character>::find(message, capacity, character{});
+        return std::as_bytes(std::span{message, nul ? static_cast<std::size_t>(nul - message) : capacity});
+    }
+    else if constexpr (c_string<Message>)
+    {
+        return std::as_bytes(std::span{std::basic_string_view{message}});
     }
     else
     {

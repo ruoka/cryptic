@@ -134,6 +134,12 @@ auto register_tests()
         // Test std::string
         std::string str = "abc";
         require_eq(cryptic::sha256::hexadecimal(str), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"s);
+
+        // A char or char8_t array is a C string: read up to its first NUL and never past its end.
+        require_eq(cryptic::sha256::hexadecimal(u8"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"s);
+        const char unterminated[] = {'a', 'b', 'c'};
+        require_eq(cryptic::sha256::hexadecimal(unterminated), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"s);
+        require_eq(cryptic::sha224::hexadecimal("abc\0def"), "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7"s);
     };
 
     test_case("CrypticSHA256::LongMessage, [cryptic]") = [] {

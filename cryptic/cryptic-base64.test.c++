@@ -69,6 +69,9 @@ auto register_tests()
         require_eq("TWE="s, cryptic::base64::encode(cstr));
         require_eq("TQ=="s, cryptic::base64::encode(std::string_view{"M"}));
         require_eq("YQBi"s, cryptic::base64::encode("a\0b"s));
+        require_eq("TWFu"s, cryptic::base64::encode(u8"Man"));
+        const char unterminated[] = {'M', 'a', 'n'};
+        require_eq("TWFu"s, cryptic::base64::encode(unterminated));
 
         const auto bytes = std::array{std::byte{0x00}, std::byte{0xff}, std::byte{0x10}};
         require_eq("AP8Q"s, cryptic::base64::encode(bytes));
