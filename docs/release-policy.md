@@ -20,11 +20,12 @@ Pin `v2.0.1` (or a later tag / deliberate commit) via submodule. Nested
 
 | Surface | Contract |
 |---------|----------|
-| `import cryptic;` | Exported partitions and algorithms documented in the [README](../README.md) |
+| `import cryptic;` | The names and behaviour listed in [interface.md](interface.md) |
 | Build / test | `./tools/CB.sh` debug/release build and test entry points used by CI |
 
-Internals, benchmark harness details, and nested `deps/tester` contents (beyond the
-gitlink SHA) are not a cryptic compatibility promise.
+Internals, the names under [Exported but not covered](interface.md#exported-but-not-covered),
+benchmark harness details, and nested `deps/tester` contents (beyond the gitlink SHA) are not a
+cryptic compatibility promise.
 
 ## Versioning
 
