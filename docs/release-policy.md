@@ -1,18 +1,18 @@
 # Release Policy
 
-## Current status: v2.1.0
+## Current status: v2.0.1
 
-**[`v2.1.0`](https://github.com/ruoka/cryptic/releases/tag/v2.1.0)** (25 October 2026) keeps the
-`import cryptic;` surface and speeds up SHA-1 and SHA-256 on AArch64 by running `transform`
-with the CPU SHA instructions. Messages whose length is a multiple of the 64-byte block are
-padded, so those digests match the specification. The scalar rounds stay the reference
-implementation and the fallback.
+**[`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1)** (25 October 2026) is a patch.
+The exported module interface is unchanged. SHA-1 and SHA-256 run `transform` with the AArch64
+SHA instructions when the compiler defines `__ARM_FEATURE_SHA2`, and messages whose length is
+a multiple of the 64-byte block are padded so those digests match the specification. The scalar
+rounds stay the reference implementation and the fallback.
 
 **[`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0)** (1 August 2026) is the
 first supported SemVer release of the modules-era surface (`import cryptic;` on Clang 21+
 with libc++ modules). Prior header-only history is treated as an untagged v1 line.
 
-Pin `v2.1.0` (or a later tag / deliberate commit) via submodule. Nested
+Pin `v2.0.1` (or a later tag / deliberate commit) via submodule. Nested
 `deps/tester` must match the parent tree’s tester pin — see
 [YarDB versioning](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
 
