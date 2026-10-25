@@ -8,7 +8,7 @@ SHA1, SHA2 and BASE64 algorithms implemented as C++23 modules.
 
 ## Versioning & Releases
 
-**Current release: [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0)** — first supported modules-era SemVer tag. Untagged header history is treated as v1.
+**Current release: [`v2.1.0`](https://github.com/ruoka/cryptic/releases/tag/v2.1.0)** — AArch64 SHA instructions in `transform`, and correct padding when a message is an exact multiple of the block. [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0) was the first supported modules-era tag. Untagged header history is treated as v1.
 
 See [`docs/release-policy.md`](docs/release-policy.md) for the public surface, SemVer rules, and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
 
@@ -84,7 +84,7 @@ Build and run the benchmark in release mode:
 
 ### Benchmark Results
 
-The benchmark hashes three message sizes (small: 43 bytes, medium: 782 bytes, large: 8294 bytes), 100,000 times each. On Apple Silicon the release build uses the AArch64 SHA instructions. The scalar baseline, the fully unrolled scalar loops, and the `asm` path are compared in [Future enhancements](#future-enhancements).
+The benchmark hashes three message sizes (small: 43 bytes, medium: 782 bytes, large: 8294 bytes), 100,000 times each. On Apple Silicon, `transform` uses the CPU SHA instructions. Against the scalar code that shipped in v2.0.0, SHA-1 is about 3× faster and SHA-256 about 11× faster on multi-block messages. Large messages land next to OpenSSL; medium messages are faster than OpenSSL. The comparison is in [CPU SHA instructions](#cpu-sha-instructions).
 
 ### Notes
 
@@ -101,9 +101,9 @@ Recent optimizations include:
 - **Template-based unrolling**: Compile-time unrolling of hexadecimal encoding loops
 - **Release flags**: Optional `-funroll-loops` for transform hot paths without manual loop duplication
 
-## Future enhancements
+## CPU SHA instructions
 
-`transform` is still the scalar reference implementation. On AArch64, when the compiler defines `__ARM_FEATURE_SHA2` (CB's Clang does: `__aarch64__`, `__ARM_FEATURE_CRYPTO`, `__ARM_FEATURE_SHA2`, `__ARM_FEATURE_SHA3`), the runtime path is one `asm` block per block:
+The scalar `transform` remains the reference implementation. On AArch64, when the compiler defines `__ARM_FEATURE_SHA2` (CB's Clang does: `__aarch64__`, `__ARM_FEATURE_CRYPTO`, `__ARM_FEATURE_SHA2`, `__ARM_FEATURE_SHA3`), the runtime path is one `asm` block per block:
 
 - SHA-256 and SHA-224 share `sha256h`, `sha256h2`, `sha256su0` and `sha256su1`. Message words are big-endian, so each 16-byte lane is `rev32`'d after the load. Round constants are the existing `k` table.
 - SHA-1 uses `sha1c`, `sha1p`, `sha1m`, `sha1h`, `sha1su0` and `sha1su1`.
@@ -128,7 +128,7 @@ The table is three release runs on this machine, 100,000 iterations, `cryptic` m
 
 Full unrolling is a fraction of the instruction speedup and inflates `benchmark.o` `__text` from about 8 KB to about 78 KB. The `asm` build is smaller than the scalar one (about 5 KB of `__text` in that object) because the round loops collapse into the crypto instructions.
 
-Still open:
+## Future enhancements
 
 - x86 SHA-NI (`SHA256RNDS2` / `SHA256MSG1` / `SHA256MSG2`, and `SHA1RNDS4` / `SHA1NEXTE` / `SHA1MSG1` / `SHA1MSG2`), gated on `__SHA__`, once an x86-64 machine can test it.
 - Scalar rounds written as C++26 `template for (constexpr auto i : std::views::iota(0uz, 64uz))` once Clang implements the iterating form of [P1306](https://clang.llvm.org/cxx_status.html).
