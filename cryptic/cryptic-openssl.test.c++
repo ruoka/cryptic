@@ -3,11 +3,12 @@
 // See the LICENSE file in the project root for full license text.
 
 // Compares every hash with OpenSSL, using whichever transform the build
-// selected. Without the OpenSSL headers there is nothing to compare with.
-#if __has_include(<openssl/evp.h>)
+// selected. Only a build that links libcrypto defines CRYPTIC_TEST_OPENSSL
+// (tools/CB.sh does): a project that compiles these tests with its own
+// leaves it undefined and needs no libcrypto, even where the headers exist.
+#if defined(CRYPTIC_TEST_OPENSSL)
 #include <sys/types.h>
 #include <openssl/evp.h>
-#define CRYPTIC_TEST_OPENSSL 1
 #endif
 
 import std;

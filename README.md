@@ -29,6 +29,10 @@ You can add extra compiler flags with `--compile-flags`:
 ./tools/CB.sh release test --compile-flags "-DCRYPTIC_SCALAR_ONLY"
 ```
 
+### OpenSSL
+
+The benchmark and a test that compares every hash with OpenSSL need OpenSSL's libcrypto, so `./tools/CB.sh` links it (from Homebrew on macOS) and defines `CRYPTIC_TEST_OPENSSL`, which turns the comparison on. A project that builds cryptic's tests as part of its own leaves `CRYPTIC_TEST_OPENSSL` undefined and needs no libcrypto, even where the OpenSSL headers are installed.
+
 ## Usage
 
 Import the `cryptic` module and use the algorithms:

@@ -149,6 +149,35 @@ if [[ "$UNAME_OUT" == "Darwin" ]]; then
     INCLUDE_FLAGS+=(-I "/opt/homebrew/include")
 fi
 
+# Linking libcrypto turns on the OpenSSL comparison test. CB keeps only the
+# last --compile-flags, so a caller's flags are added to this one.
+COMPILE_FLAGS_STR="-DCRYPTIC_TEST_OPENSSL"
+ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --compile-flags)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: Missing flags after --compile-flags"
+                exit 1
+            fi
+            COMPILE_FLAGS_STR+=" $2"
+            shift 2
+            ;;
+        --compile-flags=*)
+            COMPILE_FLAGS_STR+=" ${1#--compile-flags=}"
+            shift
+            ;;
+        --)
+            ARGS+=("$@")
+            break
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
 # Run it with resolved std.cppm path and include flags
-# Add -lcrypto for OpenSSL support (needed for cryptic benchmark)
-exec "$BIN" "$STD_CPPM" "${INCLUDE_FLAGS[@]}" --link-flags "$LINK_FLAGS_STR" "$@"
+# Add -lcrypto for OpenSSL support (needed for the benchmark and the OpenSSL comparison test)
+exec "$BIN" "$STD_CPPM" "${INCLUDE_FLAGS[@]}" --link-flags "$LINK_FLAGS_STR" --compile-flags "$COMPILE_FLAGS_STR" "${ARGS[@]}"
