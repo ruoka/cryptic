@@ -1,12 +1,12 @@
 # Release Policy
 
-## Current status: v3.0.1
+## Current status: v3.0.2
 
-**[`v3.0.1`](https://github.com/ruoka/cryptic/releases/tag/v3.0.1)** (25 October 2026) is a patch
-with v3.0.0's interface. The test that compares every hash with OpenSSL runs only in builds that
-define `CRYPTIC_TEST_OPENSSL`, as `./tools/CB.sh` does when it links libcrypto, so a project that
-compiles cryptic's tests with its own no longer needs libcrypto where the OpenSSL headers are
-installed.
+**[`v3.0.2`](https://github.com/ruoka/cryptic/releases/tag/v3.0.2)** (25 October 2026) is a patch
+with v3.0.0's interface. The test that compares every hash with OpenSSL is in `tests/` with the
+benchmark, which a project that depends on cryptic doesn't build, so only cryptic's own build uses
+OpenSSL. [`v3.0.1`](https://github.com/ruoka/cryptic/releases/tag/v3.0.1) had only switched that
+test off with `CRYPTIC_TEST_OPENSSL` among the tests a consumer builds; the macro is gone.
 
 **[`v3.0.0`](https://github.com/ruoka/cryptic/releases/tag/v3.0.0)** (25 October 2026) is a major
 release. A hash returns a `cryptic::digest<N>` value instead of a hasher object, messages must be
@@ -24,7 +24,7 @@ rounds stay the reference implementation and the fallback.
 first supported SemVer release of the modules-era surface (`import cryptic;` on Clang 21+
 with libc++ modules). Prior header-only history is treated as an untagged v1 line.
 
-Pin `v3.0.1` (or a later tag / deliberate commit) via submodule. Nested
+Pin `v3.0.2` (or a later tag / deliberate commit) via submodule. Nested
 `deps/tester` must match the parent tree’s tester pin — see
 [YarDB versioning](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
 
