@@ -3,21 +3,16 @@
 // See the LICENSE file in the project root for full license text.
 
 // Compares every hash with OpenSSL, using whichever transform the build
-// selected. Only a build that links libcrypto defines CRYPTIC_TEST_OPENSSL
-// (tools/CB.sh does): a project that compiles these tests with its own
-// leaves it undefined and needs no libcrypto, even where the headers exist.
-#if defined(CRYPTIC_TEST_OPENSSL)
+// selected. Keep it in tests/ with the benchmark: a project that depends on
+// cryptic builds the tests in cryptic/ with its own, and links no OpenSSL.
 #include <sys/types.h>
 #include <openssl/evp.h>
-#endif
 
 import std;
 import cryptic;
 import tester;
 
 namespace cryptic::openssl_test {
-
-#if defined(CRYPTIC_TEST_OPENSSL)
 
 template<typename Hash>
 auto openssl_hexadecimal(const EVP_MD* algorithm, std::span<const std::byte> message)
@@ -67,15 +62,6 @@ auto register_tests()
 
     return 0;
 }
-
-#else
-
-auto register_tests()
-{
-    return 0;
-}
-
-#endif
 
 } // namespace cryptic::openssl_test
 

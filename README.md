@@ -29,10 +29,6 @@ You can add extra compiler flags with `--compile-flags`:
 ./tools/CB.sh release test --compile-flags "-DCRYPTIC_SCALAR_ONLY"
 ```
 
-### OpenSSL
-
-The benchmark and a test that compares every hash with OpenSSL need OpenSSL's libcrypto, so `./tools/CB.sh` links it (from Homebrew on macOS) and defines `CRYPTIC_TEST_OPENSSL`, which turns the comparison on. A project that builds cryptic's tests as part of its own leaves `CRYPTIC_TEST_OPENSSL` undefined and needs no libcrypto, even where the OpenSSL headers are installed.
-
 ## Usage
 
 Import the `cryptic` module and use the algorithms:
@@ -117,7 +113,7 @@ The benchmark hashes three message sizes (small: 43 bytes, medium: 782 bytes, la
 
 ### Notes
 
-- The benchmark uses OpenSSL's EVP API
+- The benchmark uses OpenSSL's EVP API, and so does the test that compares every hash with OpenSSL. Both are in `tests/`, which only cryptic's own build compiles: `./tools/CB.sh` links libcrypto (from Homebrew on macOS), and a project that depends on cryptic needs no OpenSSL
 - Times are milliseconds, so a 3 ms result is the resolution of the clock
 - The benchmark uses realistic, varied test data rather than repetitive patterns
 
