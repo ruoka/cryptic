@@ -178,7 +178,114 @@ auto register_tests()
         require_eq(cryptic::sha1::base64(message), "qZk+NkcGgWq6PiVxeFDCbJzQ2J0="s);
         auto hash = cryptic::sha1{message};
         hash.hash(message);
+        hash.update(message);
         require_eq(0, copies);
+    };
+
+    test_case("CrypticSHA1::Update, [cryptic]") = [] {
+        auto message = std::string(300, '\0');
+        for (auto i = 0uz; i < message.size(); ++i)
+            message[i] = static_cast<char>(i * 7 + 3);
+
+        for (auto n = 0uz; n <= message.size(); ++n)
+        {
+            const auto whole = std::string_view{message}.substr(0, n);
+            const auto expected = cryptic::sha1{whole}.digest();
+
+            for (const auto split : {0uz, 1uz, 55uz, 56uz, 63uz, 64uz, 65uz, 128uz, n / 2, n})
+            {
+                if (split > n)
+                    continue;
+                auto hash = cryptic::sha1{};
+                hash.update(whole.substr(0, split)).update(whole.substr(split));
+                require_eq(expected, hash.finalize());
+            }
+
+            auto bytewise = cryptic::sha1{};
+            for (auto i = 0uz; i < n; ++i)
+                bytewise.update(whole.substr(i, 1));
+            require_eq(expected, bytewise.finalize());
+        }
+
+        // NIST FIPS 180-4: one million 'a's, in pieces that don't line up with blocks
+        auto million = cryptic::sha1{};
+        const auto piece = std::string(997, 'a');
+        auto fed = 0uz;
+        for (; fed + piece.size() <= 1'000'000; fed += piece.size())
+            million.update(piece);
+        million.update(std::string(1'000'000 - fed, 'a'));
+        million.finalize();
+        require_eq(million.hexadecimal(), "34aa973cd4c4daa4f61eeb2bdbad27316534016f"s);
+    };
+
+    test_case("CrypticSHA1::Finalize, [cryptic]") = [] {
+        auto hash = cryptic::sha1{};
+        hash.finalize();
+        require_eq(hash.hexadecimal(), "da39a3ee5e6b4b0d3255bfef95601890afd80709"s);
+
+        hash.update("abc");
+        const auto abc = hash.finalize();
+        require_eq(hash.hexadecimal(), "a9993e364706816aba3e25717850c26c9cd0d89d"s);
+        require_eq(abc, hash.finalize());
+        require_eq(abc, hash.digest());
+
+        // update() after finalize() or hash() starts a new message
+        hash.update("a").update("bc");
+        require_eq(abc, hash.finalize());
+        hash.hash("The quick brown fox jumps over the lazy dog"s);
+        hash.update("abc");
+        require_eq(abc, hash.finalize());
+
+        // hash() discards bytes from an unfinished update()
+        hash.update("discarded");
+        hash.hash("abc");
+        require_eq(abc, hash.digest());
+    };
+
+    test_case("CrypticSHA1::Digest, [cryptic]") = [] {
+        static_assert(cryptic::sha1::digest_size == 20 and cryptic::sha1::block_size == 64);
+        static_assert(std::tuple_size_v<cryptic::sha1::buffer_type> == cryptic::sha1::digest_size);
+
+        const auto hash = cryptic::sha1{"abc"s};
+        const auto digest = hash.digest();
+        require_eq(0xa9, std::to_integer<int>(digest.front()));
+        require_eq(0x9d, std::to_integer<int>(digest.back()));
+        require_eq(hash.base64(), cryptic::base64::encode(digest));
+
+        auto buffer = cryptic::sha1::buffer_type{};
+        hash.encode(buffer);
+        require_eq(digest, buffer);
+
+        using digest_view = std::span<const std::byte, cryptic::sha1::digest_size>;
+        auto larger = digest, smaller = digest;
+        larger.back() = std::byte{0x9e};
+        smaller.front() = std::byte{0xa8};
+        require_false(hash < digest_view{digest});
+        require_true(hash < digest_view{larger});
+        require_false(hash < digest_view{smaller});
+    };
+
+    test_case("CrypticSHA1::EqualityAndOrdering, [cryptic]") = [] {
+        const auto abc = cryptic::sha1{"abc"s};
+        const auto same = cryptic::sha1{"abc"s};
+        const auto other = cryptic::sha1{"abd"s};
+
+        require_true(abc == same);
+        require_false(abc != same);
+        require_true(abc != other);
+        require_true((abc <=> same) == std::strong_ordering::equal);
+        require_eq(abc < other, (abc <=> other) < 0);
+        require_eq(abc > other, other < abc);
+
+        const auto abc_digest = abc.digest(), other_digest = other.digest();
+        require_true((abc <=> other) == std::lexicographical_compare_three_way(abc_digest.begin(), abc_digest.end(),
+                                                                               other_digest.begin(), other_digest.end()));
+
+        auto digests = std::unordered_set<cryptic::sha1>{};
+        require_true(digests.insert(abc).second);
+        require_false(digests.insert(same).second);
+        require_true(digests.insert(other).second);
+        require_eq(std::hash<cryptic::sha1>{}(abc), std::hash<cryptic::sha1>{}(same));
     };
 
     return 0;
@@ -216,6 +323,51 @@ consteval bool sha1_equal_digests_are_not_less()
 
 static_assert(sha1_equal_digests_are_not_less());
 static_assert(std::is_copy_assignable_v<cryptic::sha1> and std::is_move_assignable_v<cryptic::sha1>);
+
+consteval bool sha1_update_matches_hash()
+{
+    auto message = std::array<std::byte, 130>{};
+    for (auto i = 0uz; i < message.size(); ++i)
+        message[i] = std::byte{static_cast<unsigned char>(i)};
+
+    const auto whole = cryptic::sha1{message};
+    for (const auto split : {0uz, 1uz, 63uz, 64uz, 65uz, 130uz})
+    {
+        auto hash = cryptic::sha1{};
+        hash.update(std::span{message}.first(split)).update(std::span{message}.subspan(split));
+        if (hash.finalize() != whole.digest() or hash != whole)
+            return false;
+    }
+
+    constexpr auto abc = std::array{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    const auto hash = cryptic::sha1{abc};
+    const auto digest = hash.digest();
+    return digest[0] == std::byte{0xa9}
+       and hash.base64() == "qZk+NkcGgWq6PiVxeFDCbJzQ2J0="
+       and not (hash < std::span<const std::byte, 20>{digest})
+       and (hash <=> whole) != std::strong_ordering::equal;
+}
+
+static_assert(sha1_update_matches_hash());
+
+namespace {
+
+template<typename Lhs, typename Rhs>
+concept has_equality = requires(const Lhs& lhs, const Rhs& rhs) { lhs == rhs; };
+
+template<typename Lhs, typename Rhs>
+concept has_three_way = requires(const Lhs& lhs, const Rhs& rhs) { lhs <=> rhs; };
+
+template<typename Message>
+concept sha1_accepts = requires(const Message& message) { cryptic::sha1::hexadecimal(message); };
+
+} // namespace
+
+static_assert(std::totally_ordered<cryptic::sha1> and std::three_way_comparable<cryptic::sha1, std::strong_ordering>);
+static_assert(not has_equality<cryptic::sha1, std::string> and not has_equality<std::string, cryptic::sha1>);
+static_assert(not has_three_way<cryptic::sha1, std::string> and not has_three_way<std::string, cryptic::sha1>);
+static_assert(sha1_accepts<std::string> and sha1_accepts<const char*> and sha1_accepts<std::span<const std::byte>>);
+static_assert(not sha1_accepts<std::list<char>> and not sha1_accepts<int>);
 
 #if defined(__aarch64__) && defined(__ARM_FEATURE_SHA2) && !defined(CRYPTIC_SCALAR_ONLY)
 static_assert(cryptic::details::sha1_paths::accelerated);

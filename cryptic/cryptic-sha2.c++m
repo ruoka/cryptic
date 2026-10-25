@@ -23,9 +23,7 @@ export namespace cryptic::details {
 struct sha2_paths;
 }
 
-export namespace cryptic {
-
-using namespace details;
+namespace cryptic {
 
 template<std::uint32_t H0, std::uint32_t H1, std::uint32_t H2, std::uint32_t H3, std::uint32_t H4, std::uint32_t H5, std::uint32_t H6, std::uint32_t H7, std::size_t N>
 class sha2
@@ -36,12 +34,18 @@ public:
 
     using buffer_type = std::array<std::byte, 4 * N>;
 
+    static constexpr std::size_t digest_size = 4 * N;
+
+    static constexpr std::size_t block_size = 64;
+
     consteval sha2() noexcept :
         m_message_length{0ull},
-        m_message_digest{H0,H1,H2,H3,H4,H5,H6,H7}
+        m_message_digest{H0,H1,H2,H3,H4,H5,H6,H7},
+        m_pending{},
+        m_finished{false}
     {}
 
-    template<typename Message>
+    template<details::byte_source Message>
         requires (not std::derived_from<std::remove_cvref_t<Message>, sha2>)
     constexpr sha2(Message&& message) noexcept : sha2()
     {
@@ -49,72 +53,79 @@ public:
     }
 
     __attribute__((hot))
-    constexpr void hash(auto&& message) noexcept
+    constexpr void hash(details::byte_source auto&& message) noexcept
     {
         hash_message<false>(message);
     }
 
     template<bool ForceScalar>
     __attribute__((hot))
-    constexpr void hash_message(auto&& message) noexcept
+    constexpr void hash_message(details::byte_source auto&& message) noexcept
     {
         reset();
 
         const auto bytes = details::to_bytes_span(message);
-
-        // Handle empty message explicitly
-        if (bytes.size() == 0)
-        {
-            finalize<ForceScalar>(std::span<const std::byte>{});
-            return;
-        }
-
-        const auto total_size = bytes.size();
-
-        // Optimize common case: single chunk (< 64 bytes) - avoid loop overhead
-        if (total_size < chunk_size)
-        {
-            finalize<ForceScalar>(std::span<const std::byte>{bytes.data(), total_size});
-            return;
-        }
-
-        // Multiple chunks: process full chunks first
-        // Prefetch next chunk while processing current for better memory access
-        const auto* __restrict data_ptr = bytes.data();
-        std::size_t offset = 0;
-        while (offset + chunk_size <= total_size)
-        {
-            // Prefetch next chunk (if available) for better memory access patterns
-            if not consteval
-            {
-                if (__builtin_expect(offset + 2 * chunk_size <= total_size, 1))
-                {
-                    __builtin_prefetch(data_ptr + offset + chunk_size, 0, 3);
-                }
-            }
-            update<ForceScalar>(std::span<const std::byte>{data_ptr + offset, chunk_size});
-            offset += chunk_size;
-        }
+        m_message_length = 8u * bytes.size(); // NOTE, bits
 
         // The tail may be empty. A multiple of the block size still needs a
         // padding block for the 0x80 marker and the bit length.
-        finalize<ForceScalar>(std::span<const std::byte>{data_ptr + offset, total_size - offset});
+        pad<ForceScalar>(absorb<ForceScalar>(bytes));
+        m_finished = true;
     }
 
-    void encode(std::span<std::byte, 4 * N> other) const noexcept
+    // Appends to the message. After hash() or finalize(), starts a new one.
+    constexpr sha2& update(details::byte_source auto&& message) noexcept
     {
-        const auto bytes = std::as_bytes(std::span{m_message_digest});
-        encode_impl(other, bytes, std::make_index_sequence<N>{});
+        if (m_finished)
+            reset();
+
+        auto bytes = details::to_bytes_span(message);
+        const auto pending = pending_size();
+        m_message_length += 8u * bytes.size(); // NOTE, bits
+
+        if (pending > 0)
+        {
+            const auto taken = std::min(block_size - pending, bytes.size());
+            std::ranges::copy(bytes.first(taken), m_pending.begin() + pending);
+            if (pending + taken < block_size)
+                return *this;
+            transform<false>(m_pending);
+            bytes = bytes.subspan(taken);
+        }
+
+        std::ranges::copy(absorb<false>(bytes), m_pending.begin());
+        return *this;
     }
 
-    std::string base64() const
+    // Pads the message and returns the digest. Calling it again returns the same digest.
+    constexpr buffer_type finalize() noexcept
     {
-        auto buffer = buffer_type{};
-        encode(buffer);
-        return base64::encode(buffer);
+        if (not m_finished)
+        {
+            pad<false>(std::span<const std::byte>{m_pending}.first(pending_size()));
+            m_finished = true;
+        }
+        return digest();
     }
 
-    static std::string base64(auto&& message)
+    constexpr buffer_type digest() const noexcept
+    {
+        auto bytes = buffer_type{};
+        encode(bytes);
+        return bytes;
+    }
+
+    constexpr void encode(std::span<std::byte, 4 * N> other) const noexcept
+    {
+        encode_impl(other, std::make_index_sequence<N>{});
+    }
+
+    constexpr std::string base64() const
+    {
+        return base64::encode(digest());
+    }
+
+    static constexpr std::string base64(details::byte_source auto&& message)
     {
         const auto hash = sha2{message};
         return hash.base64();
@@ -128,7 +139,7 @@ public:
         return result;
     }
 
-    static constexpr std::string hexadecimal(auto&& message)
+    static constexpr std::string hexadecimal(details::byte_source auto&& message)
     {
         const auto hash = sha2{message};
         return hash.hexadecimal();
@@ -141,34 +152,38 @@ public:
 
     constexpr bool operator < (const sha2& other) const noexcept
     {
-    	for(auto i = 0uz; i < N; ++i)
-            if(m_message_digest[i] != other.m_message_digest[i])
-                return m_message_digest[i] < other.m_message_digest[i];
-        return false;
+        return (*this <=> other) < 0;
     }
 
-    bool operator < (std::span<const std::byte, 4 * N> other) const noexcept
+    constexpr bool operator < (std::span<const std::byte, 4 * N> other) const noexcept
     {
-        const auto bytes = std::as_bytes(std::span{m_message_digest});
-    	for(auto i = 0uz; i < other.size(); i += 4uz)
-        {
-    		if(bytes[i+3] != other[i+0]) return bytes[i+3] < other[i+0];
-    		if(bytes[i+2] != other[i+1]) return bytes[i+2] < other[i+1];
-    		if(bytes[i+1] != other[i+2]) return bytes[i+1] < other[i+2];
-    		if(bytes[i+0] != other[i+3]) return bytes[i+0] < other[i+3];
-        }
-        return false;
+        return std::ranges::lexicographical_compare(digest(), other);
+    }
+
+    // Both operands are deduced, so neither side converts a message into a hash.
+    friend constexpr bool operator == (const std::same_as<sha2> auto& lhs, const std::same_as<sha2> auto& rhs) noexcept
+    {
+        auto difference = 0u;
+        for(auto i = 0uz; i < N; ++i)
+            difference |= lhs.m_message_digest[i] xor rhs.m_message_digest[i];
+        return difference == 0u;
+    }
+
+    friend constexpr std::strong_ordering operator <=> (const std::same_as<sha2> auto& lhs, const std::same_as<sha2> auto& rhs) noexcept
+    {
+        return std::lexicographical_compare_three_way(lhs.m_message_digest.begin(), lhs.m_message_digest.begin() + N,
+                                                      rhs.m_message_digest.begin(), rhs.m_message_digest.begin() + N);
     }
 
 private:
 
     template<std::size_t... Is>
-    static constexpr void encode_impl(std::span<std::byte, 4 * N> other, std::span<const std::byte> bytes, std::index_sequence<Is...>) noexcept
+    constexpr void encode_impl(std::span<std::byte, 4 * N> other, std::index_sequence<Is...>) const noexcept
     {
-        ((other[Is * 4 + 0] = bytes[Is * 4 + 3],
-          other[Is * 4 + 1] = bytes[Is * 4 + 2],
-          other[Is * 4 + 2] = bytes[Is * 4 + 1],
-          other[Is * 4 + 3] = bytes[Is * 4 + 0]), ...);
+        ((other[Is * 4 + 0] = static_cast<std::byte>(m_message_digest[Is] >> 24),
+          other[Is * 4 + 1] = static_cast<std::byte>(m_message_digest[Is] >> 16),
+          other[Is * 4 + 2] = static_cast<std::byte>(m_message_digest[Is] >>  8),
+          other[Is * 4 + 3] = static_cast<std::byte>(m_message_digest[Is] >>  0)), ...);
     }
 
     friend struct ::cryptic::details::sha2_paths;
@@ -189,8 +204,6 @@ private:
         }()), ...);
     }
 
-    static constexpr std::uint64_t chunk_size = 64u;
-
     __attribute__((always_inline))
     constexpr void reset() noexcept
     {
@@ -203,23 +216,42 @@ private:
         m_message_digest[5] = H5;
         m_message_digest[6] = H6;
         m_message_digest[7] = H7;
+        m_finished = false;
     }
 
-    template<bool ForceScalar>
-    __attribute__((hot))
-    constexpr void update(std::span<const std::byte> chunk) noexcept
+    constexpr std::size_t pending_size() const noexcept
     {
-        expects(chunk.size() == chunk_size);
-        m_message_length += 8u * chunk_size; // NOTE, bits
-        transform<ForceScalar>(std::span<const std::byte, chunk_size>{chunk.data(), chunk_size});
+        return static_cast<std::size_t>(m_message_length / 8u % block_size);
+    }
+
+    // Transforms every whole block and returns the bytes left over.
+    template<bool ForceScalar>
+    __attribute__((hot, always_inline))
+    constexpr std::span<const std::byte> absorb(std::span<const std::byte> bytes) noexcept
+    {
+        // Prefetch next block while processing current for better memory access
+        const auto* __restrict data_ptr = bytes.data();
+        auto offset = 0uz;
+        while (offset + block_size <= bytes.size())
+        {
+            if not consteval
+            {
+                if (__builtin_expect(offset + 2 * block_size <= bytes.size(), 1))
+                {
+                    __builtin_prefetch(data_ptr + offset + block_size, 0, 3);
+                }
+            }
+            transform<ForceScalar>(std::span<const std::byte, block_size>{data_ptr + offset, block_size});
+            offset += block_size;
+        }
+        return bytes.subspan(offset);
     }
 
     template<bool ForceScalar>
     __attribute__((hot, always_inline))
-    constexpr void finalize(std::span<const std::byte> last_chunk) noexcept
+    constexpr void pad(std::span<const std::byte> last_chunk) noexcept
     {
-        expects(last_chunk.size() < chunk_size);
-        m_message_length += last_chunk.size() * 8u;
+        details::expects(last_chunk.size() < block_size);
 
         auto block = std::array<std::byte, 64>{};
         auto pos = std::ranges::copy(last_chunk, block.begin()).out;
@@ -243,7 +275,7 @@ private:
     // state and in how many words the digest keeps.
     template<bool ForceScalar>
     __attribute__((hot, always_inline))
-    constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
+    constexpr void transform(std::span<const std::byte,block_size> chunk) noexcept
     {
 #if defined(CRYPTIC_AARCH64_SHA)
         if constexpr (ForceScalar)
@@ -275,7 +307,7 @@ private:
     // the load. sha256h2 reads the ABCD state from before sha256h, not the
     // value sha256h just wrote. Round constants come from the scalar k table.
     __attribute__((hot, always_inline))
-    void transform_asm(std::span<const std::byte, chunk_size> chunk) noexcept
+    void transform_asm(std::span<const std::byte, block_size> chunk) noexcept
     {
         auto* state = m_message_digest.data();
         const auto* block = chunk.data();
@@ -319,7 +351,7 @@ private:
 #endif
 
     __attribute__((hot, always_inline))
-    constexpr void transform_scalar(std::span<const std::byte,chunk_size> chunk) noexcept
+    constexpr void transform_scalar(std::span<const std::byte,block_size> chunk) noexcept
     {
         // Stack allocation is fast; alignment overhead not worth it for hot path
         auto words = std::array<std::uint32_t,64>{};
@@ -427,13 +459,34 @@ private:
     message_length_type m_message_length;
 
     std::array<std::uint32_t,8> m_message_digest;
+
+    std::array<std::byte,block_size> m_pending;
+
+    bool m_finished;
 };
+
+} // namespace cryptic
+
+export namespace cryptic {
 
 using sha224 = sha2<0xc1059ed8u,0x367cd507u,0x3070dd17u,0xf70e5939u,0xffc00b31u,0x68581511u,0x64f98fa7u,0xbefa4fa4u,7>;
 
 using sha256 = sha2<0x6a09e667u,0xbb67ae85u,0x3c6ef372u,0xa54ff53au,0x510e527fu,0x9b05688cu,0x1f83d9abu,0x5be0cd19u,8>;
 
 } // namespace cryptic
+
+template<std::uint32_t H0, std::uint32_t H1, std::uint32_t H2, std::uint32_t H3, std::uint32_t H4, std::uint32_t H5, std::uint32_t H6, std::uint32_t H7, std::size_t N>
+struct std::hash<cryptic::sha2<H0,H1,H2,H3,H4,H5,H6,H7,N>>
+{
+    constexpr std::size_t operator()(const cryptic::sha2<H0,H1,H2,H3,H4,H5,H6,H7,N>& sha2) const noexcept
+    {
+        const auto digest = sha2.digest();
+        auto value = std::size_t{0};
+        for(const auto octet : std::span{digest}.template first<sizeof value>())
+            value = value << 8 | std::to_integer<std::size_t>(octet);
+        return value;
+    }
+};
 
 export namespace cryptic::details {
 

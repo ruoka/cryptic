@@ -6,23 +6,36 @@ export module cryptic:base64;
 import std;
 import :details;
 
-export namespace cryptic::base64 {
+namespace cryptic::details {
 
-    using cryptic::details::expects;
+    // Like base64::to_index, but -1 for anything outside the alphabet, '=' included.
+    constexpr int base64_value(char c) noexcept
+    {
+        if(c >= 'A' and c <= 'Z') return c - 'A';
+        if(c >= 'a' and c <= 'z') return c - 'a' + 26;
+        if(c >= '0' and c <= '9') return c - '0' + 52;
+        if(c == '+') return 62;
+        if(c == '/') return 63;
+        return -1;
+    }
+
+} // namespace cryptic::details
+
+export namespace cryptic::base64 {
 
     inline constexpr char to_character_set(std::byte b)
     {
-        expects(b < std::byte{65});
+        cryptic::details::expects(b < std::byte{65});
         constexpr auto set = std::to_array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=");
         return set[std::to_integer<std::size_t>(b)];
     }
 
     inline constexpr char to_index(char c)
     {
-        expects((c >= 'A' and c <= 'Z') or
-                (c >= 'a' and c <= 'z') or
-                (c >= '0' and c <= '9') or
-                 c == '+' or c == '/' or c == '=');
+        cryptic::details::expects((c >= 'A' and c <= 'Z') or
+                                  (c >= 'a' and c <= 'z') or
+                                  (c >= '0' and c <= '9') or
+                                   c == '+' or c == '/' or c == '=');
 
         if(c == '=') return 64;
         if(c >= 'a') return ('Z'-'A') + 1 + (c - 'a');
@@ -33,11 +46,10 @@ export namespace cryptic::base64 {
         return 64;
     }
 
-    inline std::string encode(auto source)
+    constexpr std::string encode(std::span<const std::byte> bytes)
     {
-        auto bytes = std::as_bytes(std::span{source.cbegin(),source.cend()});
- 
         auto encoded = std::string{};
+        encoded.reserve((bytes.size() + 2) / 3 * 4);
 
         while(bytes.size() > 0)
         {
@@ -63,10 +75,16 @@ export namespace cryptic::base64 {
             encoded.push_back(to_character_set(index3));
             encoded.push_back(to_character_set(index4));
 
-            bytes = bytes.subspan(std::min(3ul,bytes.size()));
+            bytes = bytes.subspan(std::min<std::size_t>(3, bytes.size()));
         }
 
         return encoded;
+    }
+
+    template<details::byte_source Source>
+    constexpr std::string encode(Source&& source)
+    {
+        return encode(details::to_bytes_span(source));
     }
 
     inline std::string decode(std::string_view source)
@@ -93,5 +111,48 @@ export namespace cryptic::base64 {
         return decoded;
     }
 
-} // namespace cryptic::base64
+    enum class decode_error
+    {
+        invalid_length,    // not a multiple of four characters
+        invalid_character, // outside the base64 alphabet
+        invalid_padding,   // '=' anywhere but the last one or two characters
+    };
 
+    // Strict counterpart of decode(): padded input in the standard alphabet only.
+    constexpr std::expected<std::string, decode_error> try_decode(std::string_view source)
+    {
+        if(source.size() % 4 != 0)
+            return std::unexpected{decode_error::invalid_length};
+
+        auto decoded = std::string{};
+        decoded.reserve(source.size() / 4 * 3);
+
+        for(auto offset = 0uz; offset < source.size(); offset += 4)
+        {
+            const auto group = source.substr(offset, 4);
+            const auto padding = offset + 4 < source.size() ? 0uz
+                               : group.ends_with("==")      ? 2uz
+                               : group.ends_with('=')       ? 1uz
+                               :                              0uz;
+
+            auto bits = 0u;
+            for(auto i = 0uz; i < 4; ++i)
+            {
+                const auto value = i < 4 - padding ? details::base64_value(group[i]) : 0;
+                if(value < 0)
+                    return std::unexpected{group[i] == '=' ? decode_error::invalid_padding
+                                                           : decode_error::invalid_character};
+                bits = (bits << 6) bitor static_cast<unsigned>(value);
+            }
+
+            decoded.push_back(static_cast<char>(bits >> 16));
+            if(padding < 2)
+                decoded.push_back(static_cast<char>((bits >> 8) bitand 0xFFu));
+            if(padding < 1)
+                decoded.push_back(static_cast<char>(bits bitand 0xFFu));
+        }
+
+        return decoded;
+    }
+
+} // namespace cryptic::base64

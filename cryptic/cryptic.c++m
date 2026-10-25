@@ -4,28 +4,12 @@
 
 export module cryptic;
 
-import :base64;
-import :sha1;
-import :sha2;
+export import :details;
+export import :base64;
+export import :sha1;
+export import :sha2;
 
 export namespace cryptic
 {
     using namespace cryptic::base64;
-    using cryptic::sha1;
-    using cryptic::sha224;
-    using cryptic::sha256;
-}
-
-export namespace cryptic::details
-{
-    using cryptic::details::sha1_paths;
-    using cryptic::details::sha2_paths;
-}
-
-// Re-export base64 namespace - extend the exported namespace from the partition
-export namespace cryptic::base64 {
-    using cryptic::base64::to_character_set;
-    using cryptic::base64::to_index;
-    using cryptic::base64::encode;
-    using cryptic::base64::decode;
 }

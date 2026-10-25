@@ -63,9 +63,61 @@ auto register_tests()
         require_eq("sure."s, cryptic::base64::decode("c3VyZS4="));
     };
 
+    test_case("CrypticBase64::EncodeInputs, [cryptic]") = [] {
+        require_eq("TWFu"s, cryptic::base64::encode("Man"));
+        const char* cstr = "Ma";
+        require_eq("TWE="s, cryptic::base64::encode(cstr));
+        require_eq("TQ=="s, cryptic::base64::encode(std::string_view{"M"}));
+        require_eq("YQBi"s, cryptic::base64::encode("a\0b"s));
+
+        const auto bytes = std::array{std::byte{0x00}, std::byte{0xff}, std::byte{0x10}};
+        require_eq("AP8Q"s, cryptic::base64::encode(bytes));
+        require_eq("AP8="s, cryptic::base64::encode(std::span{bytes}.first(2)));
+        require_eq("AP8Q"s, cryptic::base64::encode(std::vector(bytes.begin(), bytes.end())));
+    };
+
+    test_case("CrypticBase64::TryDecode, [cryptic]") = [] {
+        // RFC 4648, section 10
+        require_eq(""s, cryptic::base64::try_decode("").value());
+        require_eq("f"s, cryptic::base64::try_decode("Zg==").value());
+        require_eq("fo"s, cryptic::base64::try_decode("Zm8=").value());
+        require_eq("foo"s, cryptic::base64::try_decode("Zm9v").value());
+        require_eq("foob"s, cryptic::base64::try_decode("Zm9vYg==").value());
+        require_eq("fooba"s, cryptic::base64::try_decode("Zm9vYmE=").value());
+        require_eq("foobar"s, cryptic::base64::try_decode("Zm9vYmFy").value());
+
+        auto every_byte = std::string(256, '\0');
+        for (auto i = 0uz; i < every_byte.size(); ++i)
+            every_byte[i] = static_cast<char>(i);
+        require_eq(every_byte, cryptic::base64::try_decode(cryptic::base64::encode(every_byte)).value());
+
+        using enum cryptic::base64::decode_error;
+        require_true(cryptic::base64::try_decode("Zg=") == std::unexpected{invalid_length});
+        require_true(cryptic::base64::try_decode("Zm9vY") == std::unexpected{invalid_length});
+        require_true(cryptic::base64::try_decode("Zm9v!A==") == std::unexpected{invalid_character});
+        require_true(cryptic::base64::try_decode("Zm 9") == std::unexpected{invalid_character});
+        require_true(cryptic::base64::try_decode("Zm9\n") == std::unexpected{invalid_character});
+        require_true(cryptic::base64::try_decode("====") == std::unexpected{invalid_padding});
+        require_true(cryptic::base64::try_decode("Z===") == std::unexpected{invalid_padding});
+        require_true(cryptic::base64::try_decode("Z=g=") == std::unexpected{invalid_padding});
+        require_true(cryptic::base64::try_decode("Zg==Zm8=") == std::unexpected{invalid_padding});
+    };
+
     return 0;
 }
 
 const auto _ = register_tests();
 
 } // namespace cryptic::base64_test
+
+consteval bool base64_at_compile_time()
+{
+    const auto bytes = std::array{std::byte{'M'}, std::byte{'a'}, std::byte{'n'}};
+    return cryptic::base64::encode(bytes) == "TWFu"
+       and cryptic::base64::encode(std::span{bytes}.first(1)) == "TQ=="
+       and cryptic::base64::try_decode("TWFu").value() == "Man"
+       and cryptic::base64::try_decode("TQ==").value() == "M"
+       and cryptic::base64::try_decode("TW=u") == std::unexpected{cryptic::base64::decode_error::invalid_padding};
+}
+
+static_assert(base64_at_compile_time());

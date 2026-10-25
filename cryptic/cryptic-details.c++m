@@ -5,7 +5,9 @@
 export module cryptic:details;
 import std;
 
-export namespace cryptic::details {
+// Nothing here is exported. The other partitions import :details and see all of it;
+// importers of cryptic don't.
+namespace cryptic::details {
 
 // Module-friendly assertion functions using std::source_location (C++20)
 // Works in modules without macros and can be used in constexpr contexts
@@ -41,8 +43,14 @@ inline constexpr void ensures(bool condition,
     }
 }
 
-// Helper to convert message to bytes span, handling const char* properly
+// A message the hashes and base64::encode accept: a C string, or anything std::span can view.
 template<typename Message>
+concept byte_source = std::is_same_v<std::decay_t<Message>, const char*>
+                   or std::is_same_v<std::decay_t<Message>, char*>
+                   or requires(Message& message) { std::span{message}; };
+
+// Helper to convert message to bytes span, handling const char* properly
+template<byte_source Message>
 inline constexpr auto to_bytes_span(Message&& message) noexcept
 {
     using message_type = std::decay_t<Message>;
