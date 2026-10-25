@@ -9,8 +9,3 @@ export import :base64;
 export import :digest;
 export import :sha1;
 export import :sha2;
-
-export namespace cryptic
-{
-    using namespace cryptic::base64;
-}

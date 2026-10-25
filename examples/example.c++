@@ -29,10 +29,11 @@ int main()
     std::cout << test5 << std::endl;
 
     auto const test6 = cryptic::base64::decode(test5);
-    std::cout << test6 << std::endl;
+    std::cout << test6.value_or("invalid base64") << std::endl;
 
-    auto const test7 = cryptic::base64::decode("TWFu"s);
-    std::cout << test7 << std::endl;
+    auto const test7 = cryptic::base64::decode("TWFu!"s);
+    if (not test7)
+        std::cout << "TWFu! is not base64" << std::endl;
 
     auto const test8 = cryptic::sha224::hexadecimal("The quick brown fox jumps over the lazy dog"s);
     std::cout << test8 << std::endl;
