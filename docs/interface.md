@@ -54,7 +54,7 @@ cryptic::base64::decode(text);     // std::expected<std::string, cryptic::base64
 
 `decode` accepts padded input in the standard alphabet and nothing else. It returns `invalid_length` when the length isn't a multiple of four, `invalid_character` for anything outside the alphabet, whitespace and the URL-safe `-` and `_` included, and `invalid_padding` for `=` anywhere but the last one or two characters. As RFC 4648 allows, it doesn't check that the unused bits of the final group are zero. It works in a constant expression.
 
-`try_decode` is a deprecated alias for `decode`, for code written against v2.1. It goes away in a later major release.
+`try_decode` is a deprecated alias for `decode`, for code written against the untagged master between v2.0.1 and v3.0.0. It goes away in a later major release.
 
 ## Internal names
 
@@ -67,7 +67,7 @@ v3.0.0 removes the parts of v2 that made a hash easy to misuse. Most code that r
 - **Digests are values.** `hash()` is static and returns a `cryptic::digest<N>`, and so does `digest()`. A hasher no longer hashes on construction, converts from a message, compares or keeps a result. In v2, `cryptic::sha256 hash = "text"s;` compiled, a function taking `const cryptic::sha256&` accepted a `std::string`, `hash < "abc"s` hashed the string before comparing, a default-constructed hash reported its initial state as its digest, and keeping a digest meant keeping the whole hasher.
 - **`digest()` replaces `finalize()`.** It doesn't change the hasher, so `update()` continues the message instead of starting a new one.
 - **Byte-like messages only.** A `std::vector<int>` or a `std::wstring` was hashed as its object representation, so the digest depended on the platform. `std::as_bytes(std::span{values})` still hashes the object representation, explicitly.
-- **`base64::decode` reports errors.** It is the strict decoder v2.1 added as `try_decode`. The v2 `decode` called `std::terminate` on any character outside the alphabet, dropped an incomplete final group without reporting it, and accepted `=` in the middle of the input.
+- **`base64::decode` reports errors.** It is the strict decoder that master added as `try_decode` after v2.0.1. The v2 `decode` called `std::terminate` on any character outside the alphabet, dropped an incomplete final group without reporting it, and accepted `=` in the middle of the input.
 - **A smaller exported surface.** `cryptic` no longer pulls in the base64 names. `to_index`, `to_character_set`, `hash_message`, `message_length_type`, `buffer_type`, `size()`, `encode()`, the `std::hash` specializations for the hashers and the `cryptic::details` test hooks are gone. The tests compare every hash with OpenSSL instead, whichever transform the build uses.
 
 ### Migrating from v2
