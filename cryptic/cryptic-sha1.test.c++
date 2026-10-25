@@ -96,6 +96,31 @@ auto register_tests()
         require_eq(cryptic::sha1::hexadecimal(million), "34aa973cd4c4daa4f61eeb2bdbad27316534016f"s);
     };
 
+    test_case("CrypticSHA1::ScalarMatchesNative, [cryptic]") = [] {
+        auto fill = [](std::size_t n) {
+            auto bytes = std::vector<std::byte>(n);
+            auto state = 0xA5A5A5A5u;
+            for (auto& byte : bytes)
+            {
+                state = state * 1664525u + 1013904223u;
+                byte = std::byte{static_cast<unsigned char>(state >> 24)};
+            }
+            return bytes;
+        };
+
+        auto check = [](std::span<const std::byte> message) {
+            const auto scalar = cryptic::details::sha1_paths::hexadecimal<true>(message);
+            const auto native = cryptic::details::sha1_paths::hexadecimal<false>(message);
+            require_eq(scalar, native);
+            require_eq(cryptic::sha1::hexadecimal(message), native);
+        };
+
+        for (auto n = 0uz; n <= 300uz; ++n)
+            check(fill(n));
+        check(fill(1024));
+        check(fill(65536));
+    };
+
     test_case("CrypticSHA1::Comparison") = [] {
         auto hash1 = cryptic::sha1{"abc"s};
         auto hash2 = cryptic::sha1{"def"s};
@@ -110,5 +135,31 @@ auto register_tests()
 }
 
 } // namespace cryptic::sha1_test
+
+consteval bool sha1_hashed_at_compile_time()
+{
+    constexpr auto abc = std::array{
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'}
+    };
+    auto hash = cryptic::sha1{};
+    hash.hash(abc);
+    if (hash.hexadecimal() != "a9993e364706816aba3e25717850c26c9cd0d89d")
+        return false;
+
+    auto longer = std::array<std::byte, 70>{};
+    for (auto i = 0uz; i < longer.size(); ++i)
+        longer[i] = std::byte{static_cast<unsigned char>(i)};
+    auto wide = cryptic::sha1{};
+    wide.hash(longer);
+    return wide.hexadecimal() == "c24887924f92adac5ae367995d12691c662b7362";
+}
+
+static_assert(sha1_hashed_at_compile_time());
+
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SHA2) && !defined(CRYPTIC_SCALAR_ONLY)
+static_assert(cryptic::details::sha1_paths::accelerated);
+#else
+static_assert(!cryptic::details::sha1_paths::accelerated);
+#endif
 
 const auto _ = cryptic::sha1_test::register_tests();

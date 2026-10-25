@@ -7,6 +7,21 @@ import std;
 import :base64;
 import :details;
 
+// AArch64 SHA-1 instructions (sha1c, sha1p, sha1m, sha1h, sha1su0, sha1su1)
+// ship with the same FEAT_SHA1 feature that __ARM_FEATURE_SHA2 reports.
+// CRYPTIC_SCALAR_ONLY forces the portable scalar path.
+//
+// x86 SHA-NI (SHA1RNDS4, SHA1NEXTE, SHA1MSG1, SHA1MSG2) would be selected
+// here on __SHA__, once an x86-64 machine is available to test it. The Linux
+// CI target is Clang 21 on x86-64 and stays on the scalar code.
+#if defined(__aarch64__) && defined(__ARM_FEATURE_SHA2) && !defined(CRYPTIC_SCALAR_ONLY)
+#define CRYPTIC_AARCH64_SHA 1
+#endif
+
+export namespace cryptic::details {
+struct sha1_paths;
+}
+
 export namespace cryptic {
 
 using namespace details;
@@ -28,13 +43,20 @@ public:
                          0xC3D2E1F0u}
     {}
 
-    sha1(auto message) noexcept : sha1()
+    constexpr sha1(auto message) noexcept : sha1()
     {
         hash(message);
     }
 
     __attribute__((hot))
-    void hash(auto message) noexcept
+    constexpr void hash(auto message) noexcept
+    {
+        hash_message<false>(message);
+    }
+
+    template<bool ForceScalar>
+    __attribute__((hot))
+    constexpr void hash_message(auto message) noexcept
     {
         reset();
 
@@ -43,16 +65,16 @@ public:
         // Handle empty message explicitly
         if (bytes.size() == 0)
         {
-            finalize(std::span<const std::byte>{});
+            finalize<ForceScalar>(std::span<const std::byte>{});
             return;
         }
 
         const auto total_size = bytes.size();
-        
+
         // Optimize common case: single chunk (< 64 bytes) - avoid loop overhead
         if (total_size < chunk_size)
         {
-            finalize(std::span<const std::byte>{bytes.data(), total_size});
+            finalize<ForceScalar>(std::span<const std::byte>{bytes.data(), total_size});
             return;
         }
 
@@ -63,17 +85,20 @@ public:
         while (offset + chunk_size <= total_size)
         {
             // Prefetch next chunk (if available) for better memory access patterns
-            if (__builtin_expect(offset + 2 * chunk_size <= total_size, 1))
+            if not consteval
             {
-                __builtin_prefetch(data_ptr + offset + chunk_size, 0, 3);
+                if (__builtin_expect(offset + 2 * chunk_size <= total_size, 1))
+                {
+                    __builtin_prefetch(data_ptr + offset + chunk_size, 0, 3);
+                }
             }
-            update(std::span<const std::byte>{data_ptr + offset, chunk_size});
+            update<ForceScalar>(std::span<const std::byte>{data_ptr + offset, chunk_size});
             offset += chunk_size;
         }
 
         // The tail may be empty. A multiple of the block size still needs a
         // padding block for the 0x80 marker and the bit length.
-        finalize(std::span<const std::byte>{data_ptr + offset, total_size - offset});
+        finalize<ForceScalar>(std::span<const std::byte>{data_ptr + offset, total_size - offset});
     }
 
     void encode(std::span<std::byte,20> other) const noexcept
@@ -95,7 +120,7 @@ public:
         return hash.base64();
     }
 
-    std::string hexadecimal() const
+    constexpr std::string hexadecimal() const
     {
         constexpr const char hex_chars[] = "0123456789abcdef";
         auto result = std::string{};
@@ -135,7 +160,7 @@ public:
         return result;
     }
 
-    static std::string hexadecimal(auto message)
+    static constexpr std::string hexadecimal(auto message)
     {
         const auto hash = sha1{message};
         return hash.hexadecimal();
@@ -178,6 +203,8 @@ private:
           other[Is * 4 + 3] = bytes[Is * 4 + 0]), ...);
     }
 
+    friend struct ::cryptic::details::sha1_paths;
+
     static constexpr std::uint64_t chunk_size = 64u;
 
     __attribute__((always_inline))
@@ -191,40 +218,206 @@ private:
         m_message_digest[4] = 0xC3D2E1F0u;
     }
 
+    template<bool ForceScalar>
     __attribute__((hot))
-    void update(std::span<const std::byte> chunk) noexcept
+    constexpr void update(std::span<const std::byte> chunk) noexcept
     {
         expects(chunk.size() == chunk_size);
         m_message_length += 8u * chunk_size; // NOTE, bits
-        transform(std::span<const std::byte, chunk_size>{chunk.data(), chunk_size});
+        transform<ForceScalar>(std::span<const std::byte, chunk_size>{chunk.data(), chunk_size});
     }
 
+    template<bool ForceScalar>
     __attribute__((hot, always_inline))
-    void finalize(std::span<const std::byte> last_chunk) noexcept
+    constexpr void finalize(std::span<const std::byte> last_chunk) noexcept
     {
         expects(last_chunk.size() < chunk_size);
         m_message_length += last_chunk.size() * 8u;
-    
+
         auto block = std::array<std::byte, 64>{};
         auto pos = std::ranges::copy(last_chunk, block.begin()).out;
-    
+
         *pos++ = std::byte{0b10000000};
-    
+
         const auto length_pos = block.begin() + 56;
-    
+
         if (pos > length_pos) { // no room for length → need extra block
             std::fill(pos, block.end(), std::byte{0b00000000});
-            transform(block);
+            transform<ForceScalar>(block);
             pos = block.begin();
         }
-    
+
         std::fill(pos, length_pos, std::byte{0b00000000});
         encode(std::span{block}.subspan<56, 8>(), m_message_length);
-        transform(block);
+        transform<ForceScalar>(block);
     }
 
+    template<bool ForceScalar>
     __attribute__((hot, always_inline))
     constexpr void transform(std::span<const std::byte,chunk_size> chunk) noexcept
+    {
+#if defined(CRYPTIC_AARCH64_SHA)
+        if constexpr (ForceScalar)
+        {
+            transform_scalar(chunk);
+        }
+        else if consteval
+        {
+            transform_scalar(chunk);
+        }
+        else
+        {
+            transform_asm(chunk);
+        }
+#else
+        if constexpr (ForceScalar)
+        {
+            transform_scalar(chunk);
+        }
+        else
+        {
+            transform_scalar(chunk);
+        }
+#endif
+    }
+
+#if defined(CRYPTIC_AARCH64_SHA)
+    // Message words are big-endian, so rev32 runs on each 16-byte lane after
+    // the load. sha1h saves rol(A, 30), which is the E input of the next four
+    // rounds. Round constants are the four SHA-1 K values, duplicated per lane.
+    __attribute__((hot, always_inline))
+    void transform_asm(std::span<const std::byte, chunk_size> chunk) noexcept
+    {
+        auto* state = m_message_digest.data();
+        const auto* block = chunk.data();
+        const auto* constants = round_k.data();
+        asm volatile(
+            R"sha(
+                ld1 {v19.4s}, [%[state]]
+                ldr s23, [%[state], #16]
+                mov v18.16b, v19.16b
+                ld1 {v4.16b, v5.16b, v6.16b, v7.16b}, [%[block]]
+                rev32 v4.16b, v4.16b
+                rev32 v5.16b, v5.16b
+                rev32 v6.16b, v6.16b
+                rev32 v7.16b, v7.16b
+                ldr w9, [%[k]]
+                dup v0.4s, w9
+                ldr w9, [%[k], #4]
+                dup v1.4s, w9
+                ldr w9, [%[k], #8]
+                dup v2.4s, w9
+                ldr w9, [%[k], #12]
+                dup v3.4s, w9
+                add v16.4s, v4.4s, v0.4s
+                sha1su0 v4.4s, v5.4s, v6.4s
+                add v17.4s, v5.4s, v0.4s
+                sha1h s22, s19
+                sha1c q19, s23, v16.4s
+                sha1su1 v4.4s, v7.4s
+                sha1su0 v5.4s, v6.4s, v7.4s
+                add v16.4s, v6.4s, v0.4s
+                sha1h s21, s19
+                sha1c q19, s22, v17.4s
+                sha1su1 v5.4s, v4.4s
+                sha1su0 v6.4s, v7.4s, v4.4s
+                add v17.4s, v7.4s, v0.4s
+                sha1h s22, s19
+                sha1c q19, s21, v16.4s
+                sha1su1 v6.4s, v5.4s
+                sha1su0 v7.4s, v4.4s, v5.4s
+                add v16.4s, v4.4s, v0.4s
+                sha1h s21, s19
+                sha1c q19, s22, v17.4s
+                sha1su1 v7.4s, v6.4s
+                sha1su0 v4.4s, v5.4s, v6.4s
+                add v17.4s, v5.4s, v1.4s
+                sha1h s22, s19
+                sha1c q19, s21, v16.4s
+                sha1su1 v4.4s, v7.4s
+                sha1su0 v5.4s, v6.4s, v7.4s
+                add v16.4s, v6.4s, v1.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                sha1su1 v5.4s, v4.4s
+                sha1su0 v6.4s, v7.4s, v4.4s
+                add v17.4s, v7.4s, v1.4s
+                sha1h s22, s19
+                sha1p q19, s21, v16.4s
+                sha1su1 v6.4s, v5.4s
+                sha1su0 v7.4s, v4.4s, v5.4s
+                add v16.4s, v4.4s, v1.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                sha1su1 v7.4s, v6.4s
+                sha1su0 v4.4s, v5.4s, v6.4s
+                add v17.4s, v5.4s, v1.4s
+                sha1h s22, s19
+                sha1p q19, s21, v16.4s
+                sha1su1 v4.4s, v7.4s
+                sha1su0 v5.4s, v6.4s, v7.4s
+                add v16.4s, v6.4s, v2.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                sha1su1 v5.4s, v4.4s
+                sha1su0 v6.4s, v7.4s, v4.4s
+                add v17.4s, v7.4s, v2.4s
+                sha1h s22, s19
+                sha1m q19, s21, v16.4s
+                sha1su1 v6.4s, v5.4s
+                sha1su0 v7.4s, v4.4s, v5.4s
+                add v16.4s, v4.4s, v2.4s
+                sha1h s21, s19
+                sha1m q19, s22, v17.4s
+                sha1su1 v7.4s, v6.4s
+                sha1su0 v4.4s, v5.4s, v6.4s
+                add v17.4s, v5.4s, v2.4s
+                sha1h s22, s19
+                sha1m q19, s21, v16.4s
+                sha1su1 v4.4s, v7.4s
+                sha1su0 v5.4s, v6.4s, v7.4s
+                add v16.4s, v6.4s, v2.4s
+                sha1h s21, s19
+                sha1m q19, s22, v17.4s
+                sha1su1 v5.4s, v4.4s
+                sha1su0 v6.4s, v7.4s, v4.4s
+                add v17.4s, v7.4s, v3.4s
+                sha1h s22, s19
+                sha1m q19, s21, v16.4s
+                sha1su1 v6.4s, v5.4s
+                sha1su0 v7.4s, v4.4s, v5.4s
+                add v16.4s, v4.4s, v3.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                sha1su1 v7.4s, v6.4s
+                add v17.4s, v5.4s, v3.4s
+                sha1h s22, s19
+                sha1p q19, s21, v16.4s
+                add v16.4s, v6.4s, v3.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                add v17.4s, v7.4s, v3.4s
+                sha1h s22, s19
+                sha1p q19, s21, v16.4s
+                sha1h s21, s19
+                sha1p q19, s22, v17.4s
+                add v19.4s, v19.4s, v18.4s
+                fmov w9, s21
+                fmov w10, s23
+                add w9, w9, w10
+                st1 {v19.4s}, [%[state]]
+                str w9, [%[state], #16]
+            )sha"
+            :
+            : [state] "r"(state), [block] "r"(block), [k] "r"(constants)
+            : "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7",
+              "v16", "v17", "v18", "v19", "v21", "v22", "v23",
+              "x9", "x10", "memory", "cc");
+    }
+#endif
+
+    __attribute__((hot, always_inline))
+    constexpr void transform_scalar(std::span<const std::byte,chunk_size> chunk) noexcept
     {
         // Stack allocation is fast; alignment overhead not worth it for hot path
         auto words = std::array<std::uint32_t,80>{};
@@ -250,6 +443,9 @@ private:
         words[14] = (std::to_integer<std::uint32_t>(chunk_data[56]) << 24) bitor (std::to_integer<std::uint32_t>(chunk_data[57]) << 16) bitor (std::to_integer<std::uint32_t>(chunk_data[58]) <<  8) bitor (std::to_integer<std::uint32_t>(chunk_data[59])      );
         words[15] = (std::to_integer<std::uint32_t>(chunk_data[60]) << 24) bitor (std::to_integer<std::uint32_t>(chunk_data[61]) << 16) bitor (std::to_integer<std::uint32_t>(chunk_data[62]) <<  8) bitor (std::to_integer<std::uint32_t>(chunk_data[63])      );
 
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 16uz; i < 32uz; ++i)
         {
             const auto w3 = words[i - 3];
@@ -259,6 +455,9 @@ private:
             words[i] = std::rotl(w3 xor w8 xor w14 xor w16, 1);
         }
 
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 32uz; i < 80uz; ++i)
         {
             const auto w6 = words[i - 6];
@@ -277,6 +476,9 @@ private:
              k = 0u;
 
         k = 0x5A827999u;
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 0uz; i < 20uz; ++i)
         {
             f = (b bitand c) bitor ((compl b) bitand d);
@@ -289,6 +491,9 @@ private:
         }
 
         k = 0x6ED9EBA1u;
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 20uz; i < 40uz; ++i)
         {
             f = b xor c xor d;
@@ -301,6 +506,9 @@ private:
         }
 
         k = 0x8F1BBCDCu;
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 40uz; i < 60uz; ++i)
         {
             f = (b bitand c) bitor ((b xor c) bitand d);
@@ -313,6 +521,9 @@ private:
         }
 
         k = 0xCA62C1D6u;
+#if defined(CRYPTIC_UNROLL_SCALAR)
+#pragma clang loop unroll(full)
+#endif
         for(auto i = 60uz; i < 80uz; ++i)
         {
             f = b xor c xor d;
@@ -343,10 +554,39 @@ private:
     	output[0] = static_cast<std::byte>(length >> 56);
     }
 
+    alignas(16) static constexpr std::array<std::uint32_t, 4> round_k =
+    {
+        0x5A827999u, 0x6ED9EBA1u, 0x8F1BBCDCu, 0xCA62C1D6u
+    };
+
     message_length_type m_message_length;
 
     std::array<std::uint32_t,5> m_message_digest;
 };
 
 } // namespace cryptic
+
+export namespace cryptic::details {
+
+// Test hook. hexadecimal<true> always runs the scalar transform.
+// hexadecimal<false> runs the transform the public hash() uses.
+struct sha1_paths
+{
+    static constexpr bool accelerated =
+#if defined(CRYPTIC_AARCH64_SHA)
+        true;
+#else
+        false;
+#endif
+
+    template<bool ForceScalar>
+    static std::string hexadecimal(std::span<const std::byte> message)
+    {
+        auto hash = cryptic::sha1{};
+        hash.template hash_message<ForceScalar>(message);
+        return hash.hexadecimal();
+    }
+};
+
+} // namespace cryptic::details
 

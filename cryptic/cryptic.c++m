@@ -18,6 +18,7 @@ export namespace cryptic
 
 export namespace cryptic::details
 {
+    using cryptic::details::sha1_paths;
     using cryptic::details::sha2_paths;
 }
 
