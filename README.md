@@ -10,7 +10,7 @@ SHA1, SHA2 and BASE64 algorithms implemented as C++23 modules.
 
 **Current release: [`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1)** — same `import cryptic;` surface as v2.0.0. `transform` uses the AArch64 SHA instructions when the compiler supports them, and messages that are an exact multiple of the block are padded. [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0) was the first supported modules-era tag. Untagged header history is treated as v1.
 
-See [`docs/interface.md`](docs/interface.md) for the public surface and the changes planned for v3.0.0, and [`docs/release-policy.md`](docs/release-policy.md) for SemVer rules and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
+This tree has the v3.0.0 interface, which isn't tagged yet. See [`docs/interface.md`](docs/interface.md) for that interface and how to migrate from v2, and [`docs/release-policy.md`](docs/release-policy.md) for SemVer rules and release criteria. Ecosystem pin rule (all `deps/tester` gitlinks identical): [YarDB `docs/versioning.md`](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md).
 
 ## Building
 
@@ -60,16 +60,18 @@ auto test3 = cryptic::base64::encode("Man"s);
 std::cout << test3 << std::endl;
 ```
 
+Examples #4 to #6 use the v3.0.0 interface, which isn't released yet; see [`docs/interface.md`](docs/interface.md#changes-in-v300).
+
 Example #4 - Base64 Decode
 ```c++
 import std;
 import cryptic;
 
-auto test4 = cryptic::base64::decode(test3);
-std::cout << test4 << std::endl;
+if (const auto test4 = cryptic::base64::decode(test3))
+    std::cout << *test4 << std::endl;
+else if (test4.error() == cryptic::base64::decode_error::invalid_character)
+    std::cout << "not base64" << std::endl;
 ```
-
-Examples #5 and #6 use additions that are not in v2.0.1 yet; see [`docs/interface.md`](docs/interface.md#changes-since-v201).
 
 Example #5 - Incremental SHA256
 ```c++
@@ -78,19 +80,18 @@ import cryptic;
 
 auto test5 = cryptic::sha256{};
 test5.update("The quick brown fox "s).update("jumps over the lazy dog"s);
-const auto digest = test5.finalize(); // std::array<std::byte, 32>
-std::cout << test5.hexadecimal() << std::endl;
+const auto digest = test5.digest(); // cryptic::digest<32>
+std::cout << digest.hexadecimal() << std::endl;
 ```
 
-Example #6 - Checked Base64 Decode
+Example #6 - Digests as Keys
 ```c++
 import std;
 import cryptic;
 
-if (const auto test6 = cryptic::base64::try_decode("TWFu"))
-    std::cout << *test6 << std::endl;
-else if (test6.error() == cryptic::base64::decode_error::invalid_character)
-    std::cout << "not base64" << std::endl;
+auto seen = std::unordered_set<cryptic::sha256::digest_type>{};
+seen.insert(cryptic::sha256::hash(test2));
+std::cout << seen.contains(cryptic::sha256::hash(test2)) << std::endl;
 ```
 
 ## Benchmark
@@ -121,7 +122,6 @@ The benchmark hashes three message sizes (small: 43 bytes, medium: 782 bytes, la
 Recent optimizations include:
 - **Compiler hints**: Hot function attributes and always-inline hints for critical paths
 - **Memory access patterns**: Prefetching, restrict pointers, and cache-aligned data structures
-- **Template-based unrolling**: Compile-time unrolling of hexadecimal encoding loops
 - **Release flags**: Optional `-funroll-loops` for transform hot paths without manual loop duplication
 
 ## CPU SHA instructions
