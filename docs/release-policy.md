@@ -59,12 +59,23 @@ CI-only changes that leave the public surface above unchanged do **not** require
 new SemVer tag. See
 [YarDB versioning — When not to bump](https://github.com/ruoka/YarDB/blob/master/docs/versioning.md#when-not-to-bump).
 
+## Toolchain floor
+
+Minimum compiler is **Clang 21** with libc++ modules (`std.cppm`), as stated in the README.
+
+| Lane | Base | LLVM |
+|--|--|--|
+| CI (`.github/workflows/ci.yml`) | Ubuntu (`ubuntu-latest`) | apt.llvm.org `llvm-toolchain-<codename>-21` via `setup-llvm` |
+| Dev container (`.devcontainer/`) | Debian **trixie** | apt.llvm.org `llvm-toolchain-trixie-21` |
+
+Raising the minimum Clang major is a **MAJOR** SemVer bump (table above). Changing only the Debian/Ubuntu image while keeping Clang 21 is CI/docs hygiene and needs no tag.
+
 ## Release criteria
 
 1. Default-branch CI green on the tagged commit (`--jsonl=failures`, `--jobs=$(nproc)`).
 2. Open PRs that affect the release surface are merged or closed.
 3. Nested `deps/tester` matches the ecosystem pin rule.
-4. README / this policy agree with the tagged surface; minimum toolchain stated.
+4. README / this policy agree with the tagged surface; minimum toolchain stated (Clang 21+).
 
 ## Cutting a release
 

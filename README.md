@@ -6,6 +6,10 @@ SHA1, SHA2 and BASE64 algorithms implemented as C++23 modules.
 - **Clang 21+** with libc++ modules (`std.cppm`)
 - Nested [tester](https://github.com/ruoka/tester) submodule (pin must match sibling libraries — see [Versioning](#versioning--releases))
 
+### Dev container
+
+[`.devcontainer/`](.devcontainer/) is **Debian trixie** + **Clang 21** from [apt.llvm.org](https://apt.llvm.org/) (`llvm-toolchain-trixie-21`). CI stays on Ubuntu (`ubuntu-latest`) with the same Clang 21 suite via [`.github/actions/setup-llvm`](.github/actions/setup-llvm) — Debian in the container and Ubuntu in CI on purpose, so libc++ layout assumptions get exercised on both. Open the folder in a Dev Container / Codespace; `post-create.sh` checks `std.cppm`, inits `deps/tester`, and runs a debug build.
+
 ## Versioning & Releases
 
 **Current release: [`v3.0.2`](https://github.com/ruoka/cryptic/releases/tag/v3.0.2)** — same `import cryptic;` surface as v3.0.0. Only cryptic's own build uses OpenSSL, for the benchmark and the test that compares with it, so a project that depends on cryptic needs none. [`v3.0.0`](https://github.com/ruoka/cryptic/releases/tag/v3.0.0) was the major release: hashes return `cryptic::digest<N>` values, messages must be byte-like, and `base64::decode` reports errors instead of terminating. [`v2.0.1`](https://github.com/ruoka/cryptic/releases/tag/v2.0.1) is the last v2 release, and [`v2.0.0`](https://github.com/ruoka/cryptic/releases/tag/v2.0.0) was the first supported modules-era tag. Untagged header history is treated as v1.
